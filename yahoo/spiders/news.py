@@ -1,10 +1,8 @@
-import asyncio
 import scrapy
 from scrapy_playwright.page import PageMethod
-
-# Windows 以外のプラットフォームでは、デフォルトのイベントループポリシーを WindowsSelectorEventLoopPolicy に設定します
-if asyncio.get_event_loop_policy() is not asyncio.WindowsSelectorEventLoopPolicy:
-    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+from datetime import datetime
+import pytz
+from scrapy.selector import Selector
 
 class NewsSpider(scrapy.Spider):
     name = 'news'
@@ -16,25 +14,76 @@ class NewsSpider(scrapy.Spider):
                 'playwright': True,
                 'playwright_include_page': True,
                 'playwright_page_methods': [
-                    # PageMethod("screenshot", path="start.png", full_page=True),  # ページ全体のスクリーンショットを撮影し、"start.png" という名前で保存します
-                    PageMethod('wait_for_selector', 'div#uamods-topics'),  # 'div#uamods-topics' セレクタが表示されるまで待機します
-                ]
+                    PageMethod("screenshot", path="start.png", full_page=True),
+                    PageMethod('wait_for_selector', 'div#uamods-topics'),
+                ],
+                "callback": self.parse,
+                "errback": self.errback,
             }
         )
+    
+    async def get_page_source(page):
+        content = await page.content()
+        return content
 
+    # "月/日(曜日) hh:mm"形式の引数の日時をMMDDhhmm形式に変換する
+    def convert_date(self, refDate):
+        date = refDate.split('(')[0]
+        time = refDate.split(')')[1].split()[0]
+        # 1桁の場合は0埋めする
+        month = date.split('/')[0].zfill(2)
+        day = date.split('/')[1].zfill(2)
+        hour = time.split(':')[0].zfill(2)
+        minute = time.split(':')[1].zfill(2)
+        return {'date': f'{month}{day}', 'time': f'{hour}{minute}'}
+    
+    #現在の日付をMMDD形式で取得する
+    def get_today(self):
+        today = datetime.now(pytz.timezone('Asia/Tokyo'))
+        return today.strftime('%m%d')
+            
     async def parse(self, response):
-        print("クローリング実行")
-        # playwirght で取得したページを response に変換します
-        page = response.meta['playwright_page'] # Playwright のページオブジェクトを取得します
-        # page.locator('div.newsFeed_item_title').click() # 記事のリンクをクリックします
-        # page.get_by_text('記事全文を読む').click() # '記事全文を読む' ボタンをクリックします
-        schreenshot = await page.screenshot(path="article.png", full_page=True) # ページ全体のスクリーンショットを撮影し、"article.png" という名前で保存します
-        await page.close() # ページを閉じます
+        page = response.meta['playwright_page']
+        # await page.close() # playwrigthのページを閉じる
         
-        # articles = page.locator('div#uamods-topics ul').all() # 記事のリストを取得します
+        today = self.get_today() # 今日の日付を取得
         
-        # for article in articles:
-        #     print("クローリング実行中")
-        #     yield {
-        #         'title': article.locator('div.newsFeed_item_title').inner_text(),
-        #     }
+        articles = response.css('li.newsFeed_item') # scrapyのセレクタで記事を取得
+        for article in articles:
+            title = article.css('div.newsFeed_item_title::text').get() # タイトルを取得
+            postDate = self.convert_date(article.css('time.newsFeed_item_date::text').get()) # 投稿日を取得
+            url = article.css('a.newsFeed_item_link::attr(href)').get() # URLを取得
+            
+            #取得した投稿日が今日ではない場合は処理を終了
+            if postDate['date'] != today:
+                break
+            
+            #記事のリンクに移動
+            yield scrapy.Request(
+                url,
+                meta={
+                    'playwright': True,
+                    'playwright_include_page': True,
+                    'playwright_page_methods': [
+                        PageMethod('wait_for_selector', 'div#uamods-topics'),
+                        PageMethod('click', get_by_text='記事全文を読む'),
+                        PageMethod('screenshot', path="articledetail.png", full_page=True),
+                    ],
+                    "callback": self.parse_article,
+                    "errback": self.errback,
+                }
+            )
+            break
+            # 取得したデータをyieldで返す
+            yield {
+                'title': title,
+                'postDate': f"{postDate['date']}{postDate['time']}",
+                'url': url,
+            }
+
+    async def parse_article(self, response):
+        pass
+
+    async def errback(self, failure):
+        page = failure.request.meta["playwright_page"]
+        await page.close()
