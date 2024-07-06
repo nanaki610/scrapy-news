@@ -2,6 +2,7 @@
 文字列操作に関するユーティリティ関数を提供します。
 
 - list2str: リストの要素を連結して文字列に変換し、先頭と末尾の空白を削除します。
+- search_word: 文字列から指定した単語があればtrueを返します。
 """
 
 def list2str(list):
@@ -14,9 +15,9 @@ def list2str(list):
   
 def search_word(text, word):
     """
-    文字列から指定した単語を検索する。
+    文字列から指定した単語があればtrueを返す
     :param text: 検索対象の文字列
     :param word: 検索する単語
-    :return: 検索結果
+    :return: bool
     """
-    return text.find(word) != -1
+    return word in text 
