@@ -4,6 +4,7 @@ import scrapy
 from scrapy_playwright.page import PageMethod
 from scrapy.selector import Selector
 import logging
+from scrapy.loader import ItemLoader
 
 # 現在のファイルのディレクトリパスを取得
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -12,27 +13,23 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
     
-from date_util import convert_date, get_today
-from str_util import list2str
+from const import BASE_URL, TOP_PICS_URL, TOP_PICS_SELECTOR, ARTICLE_SELECTOR, LINK_TO_ARTICLE_SELECTOR, NEXT_PAGE_SELECTOR, ARTICLE_CONTENT_SELECTOR, TIMEOUT
+from common_func import convert_date, get_today, list2str, post_slack
+from items import YahooItem
 
 # ロガーの設定
-# logger = logging.getLogger(__name__)
-# logging.basicConfig(level=logging.ERROR)
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.ERROR)
 
 class NewsSpider(scrapy.Spider):
     """
     Yahooニュースのトップピックスからニュース記事をスクレイピングするSpiderクラス。
     """
     name = 'news'
-    BASE_URL = 'https://news.yahoo.co.jp'
-    TOP_PICS_URL = 'https://news.yahoo.co.jp/topics/top-picks'
-    TOP_PICS_SELECTOR = 'div#uamods-topics'
-    ARTICLE_SELECTOR = 'article[id*=uamods]'
-    ARTICLE_CONTENT_SELECTOR = 'div.article_body *::text'
-    NEXT_PAGE_SELECTOR = 'ul.jOUhIY > li:last-of-type > a::attr(href)'
-    TIMEOUT = 90000
+
     page_number = 1
     article_number = 1
+    flag_today_article = True
     
     def start_requests(self):
         """
@@ -41,13 +38,13 @@ class NewsSpider(scrapy.Spider):
         Yahooニュースのトップピックスページのセレクタがロードされるのを待つ。
         """
         yield scrapy.Request(
-            self.TOP_PICS_URL,
+            TOP_PICS_URL,
             meta={
                 'playwright': True,
                 'playwright_include_page': True,
                 'playwright_page_methods': [
                     PageMethod("screenshot", path="start.png", full_page=True),
-                    PageMethod('wait_for_selector', self.TOP_PICS_SELECTOR, timeout=self.TIMEOUT),
+                    PageMethod('wait_for_selector', TOP_PICS_SELECTOR, timeout=TIMEOUT),
                 ],
             },
             callback=self.start_parse,
@@ -61,7 +58,7 @@ class NewsSpider(scrapy.Spider):
 
         :param response: ページのレスポンス
         """
-        print("start_parse")
+        logging.info("start_parse")
         page = response.meta.get('playwright_page')
         if page:
             screenshot = await page.screenshot(path=f"SS/page{self.page_number}.png", full_page=True)
@@ -74,12 +71,14 @@ class NewsSpider(scrapy.Spider):
             self.article_number = index + 1
             
             title = article.css('div.newsFeed_item_title::text').get() # タイトルを取得
+            article_number = f"{self.page_number}-{self.article_number}" # 記事番号を取得
             post_date = convert_date(article.css('time.newsFeed_item_date::text').get()) # 投稿日を取得
             url = article.css('a.newsFeed_item_link::attr(href)').get() # URLを取得
             
             # 取得した投稿日が今日ではない場合は処理を終了
-            # if post_date['date'] != today:
-            #     break
+            if post_date['date'] != today:
+                self.flag_today_article = False
+                break
             
             # 記事のリンクに移動
             yield scrapy.Request(
@@ -88,12 +87,12 @@ class NewsSpider(scrapy.Spider):
                     'playwright': True,
                     'playwright_include_page': True,
                     'playwright_page_methods': [
-                        PageMethod('wait_for_selector', self.ARTICLE_SELECTOR, timeout=self.TIMEOUT),
-                        PageMethod('click', 'a.bxbqJP'),
-                        PageMethod('wait_for_selector', self.ARTICLE_SELECTOR, timeout=self.TIMEOUT),
-                        # PageMethod('screenshot', path=f"SS/articledetail{self.page_number}-{self.article_number}.png", full_page=True),
+                        PageMethod('wait_for_selector', ARTICLE_SELECTOR, timeout=TIMEOUT),
+                        PageMethod('click', LINK_TO_ARTICLE_SELECTOR),
+                        PageMethod('wait_for_selector', ARTICLE_SELECTOR, timeout=TIMEOUT),
                     ],
                     'title': title,
+                    'article_number': article_number,
                     'post_date': f"{post_date['date']}{post_date['time']}",
                     'url': url,
                 },
@@ -102,17 +101,17 @@ class NewsSpider(scrapy.Spider):
             )
             
         # 次のページがある場合はリクエストを送信
-        next_page_selector = response.css(self.NEXT_PAGE_SELECTOR).get()
-        if next_page_selector:
+        next_page_selector = response.css(NEXT_PAGE_SELECTOR).get()
+        if next_page_selector and self.flag_today_article:
             self.page_number += 1
-            next_url = self.BASE_URL + next_page_selector
+            next_url = BASE_URL + next_page_selector
             yield scrapy.Request(
                 next_url,
                 meta={
                     'playwright': True,
                     'playwright_include_page': True,
                     'playwright_page_methods' : [
-                        PageMethod('wait_for_selector', self.TOP_PICS_SELECTOR, timeout=self.TIMEOUT),
+                        PageMethod('wait_for_selector', TOP_PICS_SELECTOR, timeout=TIMEOUT),
                     ],
                 },
                 callback=self.start_parse,
@@ -126,7 +125,7 @@ class NewsSpider(scrapy.Spider):
         :param response: ページのレスポンス
         :return: 記事のHTMLコンテンツ
         """
-        print("parse_article")
+        logging.info("parse_article")
         page = response.meta.get('playwright_page')
         
         if page:
@@ -136,16 +135,22 @@ class NewsSpider(scrapy.Spider):
 
             # 記事の内容を取得。'article#uamods'は記事のHTML要素を指定するセレクタ
             selector = Selector(text=content)
-            article = selector.css(self.ARTICLE_CONTENT_SELECTOR).getall()
-
-            # 全てのデータをまとめてyield
-            yield {
-                'title': response.meta['title'],
-                'article_number': f"{self.page_number}-{self.article_number}",
-                'post_date': response.meta['post_date'],
-                'url': response.meta['url'],
-                'article': list2str(article)
-            }
+            try:
+                article = selector.css(ARTICLE_CONTENT_SELECTOR).getall()
+                article = list2str(article)
+            except Exception as e:
+                logging.warning("この記事のセレクターは特殊のため本文取得をスキップします",e)
+                article = "-"
+                pass
+                
+            # ItemLoaderを使ってデータを格納
+            loader = ItemLoader(item=YahooItem(), response=response)
+            loader.add_value('title', response.meta['title'])
+            loader.add_value('article_number', response.meta['article_number'])
+            loader.add_value('post_date', response.meta['post_date'])
+            loader.add_value('url', response.meta['url'])
+            loader.add_value('article', article)
+            yield loader.load_item()
 
     async def errback(self, failure):
         """
@@ -154,12 +159,22 @@ class NewsSpider(scrapy.Spider):
 
         :param failure: 失敗したリクエストの情報
         """
-        print("errback")
+        logging.info("errback")
         page = failure.request.meta.get("playwright_page")
         if page:
             screenshot = await page.screenshot(path=f"SS/error{self.page_number}-{self.article_number}.png", full_page=True)
             await page.close()  # 失敗したページを閉じる
 
         # エラーメッセージをログに記録
-        # logger.error(f"Request failed: {failure.request.url}, Reason: {failure.value}")
-        print(f"Request failed: {failure.request.url}, Reason: {failure.value}")
+        logging.error(f"Request failed: {failure.request.url}, Reason: {failure.value}")
+        
+        # ItemLoaderを使ってデータを格納。エラーが発生した場合はURL以外'Error'を格納。
+        loader = ItemLoader(item=YahooItem(), response=failure.request)
+        loader.add_value('title', 'Error')
+        loader.add_value('article_number', 'Error')
+        loader.add_value('post_date', 'Error')
+        loader.add_value('url', failure.request.url)
+        loader.add_value('article', 'Error')
+        yield loader.load_item()
+        
+        post_slack(f"Yahoo Newsのスクレイピングに失敗した記事があります：{failure.request.url}")
