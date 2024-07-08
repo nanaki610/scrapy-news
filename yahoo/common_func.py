@@ -15,6 +15,7 @@ import json
 from datetime import datetime
 import pytz
 import logging
+import logging.handlers
 from const import SLACK_WEBHOOK_URL
 
 def list2str(list):
@@ -109,11 +110,13 @@ def setup_logger(logger_name='python', log_file='execute.log', level='INFO'):
     
     logger = logging.getLogger(logger_name)
     logger.setLevel(log_levels[level])
-
-    handler = logging.FileHandler(log_file)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    handler.setFormatter(formatter)
-    logger.addHandler(handler) #追加するハンドラを設定
+    
+    if not logger.hasHandlers(): # ハンドラが未設定の場合のみ設定
+        # handler = logging.FileHandler(filename=log_file, encoding='utf-8')
+        handler = logging.handlers.RotatingFileHandler(filename=log_file, maxBytes=100000, backupCount=5, encoding='utf-8')
+        formatter = logging.Formatter('%(asctime)s - %(filename)s - %(name)s - %(levelname)s - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
     return logger
 
 #単体で実行された場合はslackにテスト投稿を行う

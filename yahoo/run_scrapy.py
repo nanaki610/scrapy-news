@@ -19,7 +19,8 @@ from scrapy.signalmanager import dispatcher
 from const import LOG_LEVEL, LOG_FILE
 
 # ロガーの設定
-logger = setup_logger('pipelines', 'scrapy.log', LOG_LEVEL)
+# logger = setup_logger('news', 'scrapy.log', 'INFO')
+logger = setup_logger('news', LOG_FILE, LOG_LEVEL)
 
 
 #タイムゾーン設定

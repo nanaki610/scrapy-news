@@ -7,6 +7,8 @@
 #     https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 #     https://docs.scrapy.org/en/latest/topics/spider-middleware.html
 
+from const import LOG_LEVEL, LOG_FILE
+
 BOT_NAME = 'yahoo'
 
 SPIDER_MODULES = ['yahoo.spiders']
@@ -20,14 +22,13 @@ NEWSPIDER_MODULE = 'yahoo.spiders'
 ROBOTSTXT_OBEY = True
 
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
-#CONCURRENT_REQUESTS = 32
-CONCURRENT_REQUESTS = 4
+# CONCURRENT_REQUESTS = 4
 
 
 # Configure a delay for requests for the same website (default: 0)
 # See https://docs.scrapy.org/en/latest/topics/settings.html#download-delay
 # See also autothrottle settings and docs
-DOWNLOAD_DELAY = 3
+DOWNLOAD_DELAY = 1
 # The download delay setting will honor only one of:
 #CONCURRENT_REQUESTS_PER_DOMAIN = 16
 #CONCURRENT_REQUESTS_PER_IP = 16
@@ -98,6 +99,7 @@ DOWNLOAD_HANDLERS = {
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 FEED_EXPORT_ENCODING = 'utf-8'
 
-LOG_LEVEL = 'INFO'
-# LOG_FILE = 'scrapy.log'
+# LOG_LEVEL = 'INFO'
+LOG_FILE = LOG_FILE
+LOG_LEVEL = LOG_LEVEL
 PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT= 90000

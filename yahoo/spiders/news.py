@@ -18,7 +18,8 @@ from common_func import convert_date, get_today, list2str, post_slack
 from items import YahooItem
 
 # ロガーの設定
-logger = setup_logger('news', 'scrapy.log', LOG_LEVEL)
+# logger = setup_logger('news', 'scrapy.log', 'INFO')
+logger = setup_logger('news', LOG_FILE, LOG_LEVEL)
 
 class NewsSpider(scrapy.Spider):
     """
