@@ -13,20 +13,32 @@ import pytz
 from scrapy.crawler import CrawlerProcess
 from scrapy.utils.project import get_project_settings
 from spiders.news import NewsSpider
-from common_func import  post_slack
+from common_func import  post_slack, setup_logger
+from scrapy import signals
+from scrapy.signalmanager import dispatcher
+from const import LOG_LEVEL, LOG_FILE
 
-#現在時刻(JST)をYYYYMMDDhhmm形式で取得
+# ロガーの設定
+logger = setup_logger('pipelines', 'scrapy.log', LOG_LEVEL)
+
+
+#タイムゾーン設定
 tokyo_timezone = pytz.timezone('Asia/Tokyo')
-start_time = datetime.now(tokyo_timezone).strftime('%Y/%m/%d %H:%M')
-print(f"スクレイピング開始時刻: {start_time}")
+
+def spider_opened(spider): #スパイダーが開始したときに実行する関数
+  start_time = datetime.now(tokyo_timezone).strftime('%Y/%m/%d %H:%M') #現在時刻(JST)をYYYYMMDDhhmm形式で取得
+  logger.info(f"スクレイピング開始時刻: {start_time}")
+  
+def spider_closed(spider, reason): #スパイダーが終了したときに実行する関数
+  end_time = datetime.now(tokyo_timezone).strftime('%Y/%m/%d %H:%M')
+  logger.info(f"[{reason}]スクレイピング終了時刻: {end_time}")
+  post_slack(f"Yahoo Newsのスクレイピングが完了しました。取得記事件数：{spider.pass_count}件/エラー件数：{spider.error_count}件")
+  
 
 # Yahooニュースのスパイダーを実行
-process = CrawlerProcess(settings=get_project_settings())
-process.crawl(NewsSpider)
-process.start()
+process = CrawlerProcess(settings = get_project_settings()) # Scrapyのプロジェクト設定を読み込み
+dispatcher.connect(spider_opened, signal=signals.spider_opened) # スパイダーが開始したときに実行する関数を設定
+dispatcher.connect(spider_closed, signal=signals.spider_closed) # スパイダーが終了したときに実行する関数を設定
 
-end_time = datetime.now(tokyo_timezone).strftime('%Y/%m/%d %H:%M')
-exect_time = (datetime.now() - datetime.strptime(start_time, '%Y/%m/%d %H:%M')).seconds / 60 # 経過時間(分)
-
-print(f"スクレイピング終了時刻: {end_time}")
-post_slack(f"Yahoo Newsのスクレイピングが完了しました。実行時間:{exect_time}分")
+process.crawl(NewsSpider) # NewsSpiderという名前のスパイダーを使用してクローリングプロセスを初期化
+process.start() # クローリングプロセスを開始

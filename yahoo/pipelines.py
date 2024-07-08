@@ -8,8 +8,12 @@
 from itemadapter import ItemAdapter
 import sqlite3
 from sqlalchemy.exc import SQLAlchemyError
-import logging
 from models import Base, Article, Session
+from common_func import setup_logger
+from const import LOG_LEVEL, LOG_FILE
+
+# ロガーの設定
+logger = setup_logger('pipelines', 'scrapy.log', LOG_LEVEL)
 
 class CsvPipeline:
     """
@@ -118,7 +122,7 @@ class SQLAlchemyPipeline:
             self.session = Session()
             Base.metadata.create_all(bind=self.session.get_bind())
         except SQLAlchemyError as e:
-            logging.error(f"データベース接続エラー: {e}")
+            logger.error(f"データベース接続エラー: {e}")
             raise e  # スパイダーの実行を停止するためにエラーを伝播させる
 
     def close_spider(self, spider):
@@ -142,8 +146,8 @@ class SQLAlchemyPipeline:
             )
             self.session.merge(article)
             self.session.commit()
-            logging.info(f"記事が正常に保存されました: {item.get('title')}")
+            logger.info(f"記事が正常に保存されました: {item.get('title')}")
         except SQLAlchemyError as e:
-            logging.error(f"アイテム挿入エラー: {e}")
+            logger.error(f"アイテム挿入エラー: {e}")
             self.session.rollback()  # 変更をロールバック
         return item

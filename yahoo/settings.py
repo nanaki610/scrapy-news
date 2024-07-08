@@ -65,8 +65,7 @@ DOWNLOAD_DELAY = 3
 # Configure item pipelines
 # See https://docs.scrapy.org/en/latest/topics/item-pipeline.html
 ITEM_PIPELINES = {
-#    'yahoo.pipelines.SQLitePipeline': 300,
-#    'yahoo.pipelines.CsvPipeline': 400,
+   'yahoo.pipelines.CsvPipeline': 400,
    'yahoo.pipelines.SQLAlchemyPipeline': 500,
 }
 
@@ -100,4 +99,5 @@ TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 FEED_EXPORT_ENCODING = 'utf-8'
 
 LOG_LEVEL = 'INFO'
+# LOG_FILE = 'scrapy.log'
 PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT= 90000
