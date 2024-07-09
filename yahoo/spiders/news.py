@@ -63,7 +63,7 @@ class NewsSpider(scrapy.Spider):
         page = response.meta.get('playwright_page')
         if page:
             screenshot = await page.screenshot(path=f"SS/page{self.page_number}.png", full_page=True)
-            await page.close() # Playwrightのページを閉じる
+        await page.close() # Playwrightのページを閉じる
         
         today = get_today() # 今日の日付を取得
         
@@ -77,9 +77,9 @@ class NewsSpider(scrapy.Spider):
             url = article.css('a.newsFeed_item_link::attr(href)').get() # URLを取得
             
             # 取得した投稿日が今日ではない場合は処理を終了
-            if post_date['date'] != today:
-                self.flag_today_article = False
-                break
+            # if post_date['date'] != today:
+            #     self.flag_today_article = False
+            #     break
             
             # 記事のリンクに移動
             yield scrapy.Request(
@@ -132,7 +132,7 @@ class NewsSpider(scrapy.Spider):
         if page:
             # 記事の内容を取得する前にページのコンテンツを取得
             content = await page.content()
-            await page.close()  # コンテンツ取得後にページを閉じる
+            # await page.close()  # コンテンツ取得後にページを閉じる
 
             # 記事の内容を取得。'article#uamods'は記事のHTML要素を指定するセレクタ
             selector = Selector(text=content)
@@ -154,6 +154,7 @@ class NewsSpider(scrapy.Spider):
             yield loader.load_item()
             
             self.pass_count += 1 # 取得記事数をカウント
+        await page.close()  # コンテンツ取得後にページを閉じる
 
     async def errback(self, failure):
         """
@@ -166,7 +167,7 @@ class NewsSpider(scrapy.Spider):
         page = failure.request.meta.get("playwright_page")
         if page:
             screenshot = await page.screenshot(path=f"SS/error{self.page_number}-{self.article_number}.png", full_page=True)
-            await page.close()  # 失敗したページを閉じる
+        await page.close()  # 失敗したページを閉じる
 
         # エラーメッセージをログに記録
         logger.error(f"Request failed: {failure.request.url}, Reason: {failure.value}")
