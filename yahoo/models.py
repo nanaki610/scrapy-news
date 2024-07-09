@@ -11,7 +11,7 @@
 from sqlalchemy import create_engine, Column, Integer, String, Text, DateTime
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
-from const import MYSQL_PATH, SQLITE_PATH
+from const import MYSQL_PATH, SQLITE_PATH, DB_TYPE
 
 Base = declarative_base()
 
@@ -29,6 +29,8 @@ class Article(Base):
 
 # データベース接続とテーブル作成のためのエンジンとセッションを設定する部分は、
 # 実際のデータベース接続情報に基づいて適宜調整してください。
-# engine = create_engine(SQLITE_PATH) #sqlite3を使う場合
-engine = create_engine(MYSQL_PATH) #MySQLを使う場合
+if DB_TYPE == "SQLITE":
+	engine = create_engine(SQLITE_PATH) #sqlite3を使う場合
+elif DB_TYPE == "MYSQL":
+	engine = create_engine(MYSQL_PATH) #MySQLを使う場合
 Session = sessionmaker(bind=engine, autocommit=False, autoflush=False)

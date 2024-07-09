@@ -27,7 +27,11 @@ ARTICLE_CONTENT_SELECTOR = 'div.article_body *::text'
 NEXT_PAGE_SELECTOR = 'ul.jOUhIY > li:last-of-type > a::attr(href)'
 TIMEOUT = 90000
 SLACK_WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL')
-SQLITE_PATH = os.getenv('SQLITE_PATH')
+SQLITE_PATH = "sqlite:///yahoo.db"
+
+# ログの設定
+LOG_LEVEL = 'INFO'
+LOG_FILE = 'scrapy.log'
 
 #MYSQLの接続情報
 MYSQL_DB_USER = os.getenv('MYSQL_DB_USER')
@@ -35,3 +39,7 @@ MYSQL_PASSWORD = os.getenv('MYSQL_PASSWORD')
 MYSQL_HOST = os.getenv('MYSQL_HOST')
 MYSQL_DATABASE = os.getenv('MYSQL_DATABASE')
 MYSQL_PATH = f'mysql://{MYSQL_DB_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}/{MYSQL_DATABASE}'
+
+#SQLiteかMYSQLかを選択
+# DB_TYPE="MYSQL"
+DB_TYPE="SQLITE"

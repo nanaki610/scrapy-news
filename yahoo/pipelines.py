@@ -8,8 +8,13 @@
 from itemadapter import ItemAdapter
 import sqlite3
 from sqlalchemy.exc import SQLAlchemyError
-import logging
 from models import Base, Article, Session
+from common_func import setup_logger
+from const import LOG_LEVEL, LOG_FILE
+
+# ロガーの設定
+# logger = setup_logger('news', 'scrapy.log', 'INFO')
+logger = setup_logger('news', LOG_FILE, LOG_LEVEL)
 
 class CsvPipeline:
     """
@@ -118,7 +123,7 @@ class SQLAlchemyPipeline:
             self.session = Session()
             Base.metadata.create_all(bind=self.session.get_bind())
         except SQLAlchemyError as e:
-            logging.error(f"データベース接続エラー: {e}")
+            logger.error(f"データベース接続エラー: {e}")
             raise e  # スパイダーの実行を停止するためにエラーを伝播させる
 
     def close_spider(self, spider):
@@ -142,8 +147,12 @@ class SQLAlchemyPipeline:
             )
             self.session.merge(article)
             self.session.commit()
-            logging.info(f"記事が正常に保存されました: {item.get('title')}")
+            logger.info(f"記事が正常に保存されました。リンク: {item.get('url')}")
         except SQLAlchemyError as e:
-            logging.error(f"アイテム挿入エラー: {e}")
+            #ユニーク成約の場合はログレベルをwarningで出力し、それ以外のエラーはログレベルをerrorで出力
+            if "UNIQUE constraint failed" in str(e):
+                logger.warning(f"取得した記事は既に保存済のためスキップします。リンク: {item.get('url')}")
+            else:
+                logger.error(f"記事の保存中にエラーが発生しました。リンク: {item.get('url')}\n エラー内容: {e}")
             self.session.rollback()  # 変更をロールバック
         return item

@@ -3,8 +3,8 @@ import sys
 import scrapy
 from scrapy_playwright.page import PageMethod
 from scrapy.selector import Selector
-import logging
 from scrapy.loader import ItemLoader
+from common_func import setup_logger
 
 # 現在のファイルのディレクトリパスを取得
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -13,24 +13,25 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
     
-from const import BASE_URL, TOP_PICS_URL, TOP_PICS_SELECTOR, ARTICLE_SELECTOR, LINK_TO_ARTICLE_SELECTOR, NEXT_PAGE_SELECTOR, ARTICLE_CONTENT_SELECTOR, TIMEOUT
+from const import LOG_LEVEL, LOG_FILE, BASE_URL, TOP_PICS_URL, TOP_PICS_SELECTOR, ARTICLE_SELECTOR, LINK_TO_ARTICLE_SELECTOR, NEXT_PAGE_SELECTOR, ARTICLE_CONTENT_SELECTOR, TIMEOUT
 from common_func import convert_date, get_today, list2str, post_slack
 from items import YahooItem
 
 # ロガーの設定
-logger = logging.getLogger(__name__)
-logging.basicConfig(level=logging.ERROR)
+# logger = setup_logger('news', 'scrapy.log', 'INFO')
+logger = setup_logger('news', LOG_FILE, LOG_LEVEL)
 
 class NewsSpider(scrapy.Spider):
     """
     Yahooニュースのトップピックスからニュース記事をスクレイピングするSpiderクラス。
     """
     name = 'news'
-
+    pass_count = 0 # 取得記事数
+    error_count = 0 # エラー記事数
     page_number = 1
     article_number = 1
     flag_today_article = True
-    
+
     def start_requests(self):
         """
         スパイダーの最初のリクエストを生成する。
@@ -58,7 +59,7 @@ class NewsSpider(scrapy.Spider):
 
         :param response: ページのレスポンス
         """
-        logging.info("start_parse")
+        logger.info("start_parse")
         page = response.meta.get('playwright_page')
         if page:
             screenshot = await page.screenshot(path=f"SS/page{self.page_number}.png", full_page=True)
@@ -125,7 +126,7 @@ class NewsSpider(scrapy.Spider):
         :param response: ページのレスポンス
         :return: 記事のHTMLコンテンツ
         """
-        logging.info("parse_article")
+        logger.info("parse_article")
         page = response.meta.get('playwright_page')
         
         if page:
@@ -139,7 +140,7 @@ class NewsSpider(scrapy.Spider):
                 article = selector.css(ARTICLE_CONTENT_SELECTOR).getall()
                 article = list2str(article)
             except Exception as e:
-                logging.warning("この記事のセレクターは特殊のため本文取得をスキップします",e)
+                logger.warning("この記事のセレクターは特殊のため本文取得をスキップします",e)
                 article = "-"
                 pass
                 
@@ -151,6 +152,8 @@ class NewsSpider(scrapy.Spider):
             loader.add_value('url', response.meta['url'])
             loader.add_value('article', article)
             yield loader.load_item()
+            
+            self.pass_count += 1 # 取得記事数をカウント
 
     async def errback(self, failure):
         """
@@ -159,14 +162,14 @@ class NewsSpider(scrapy.Spider):
 
         :param failure: 失敗したリクエストの情報
         """
-        logging.info("errback")
+        logger.info("errback")
         page = failure.request.meta.get("playwright_page")
         if page:
             screenshot = await page.screenshot(path=f"SS/error{self.page_number}-{self.article_number}.png", full_page=True)
             await page.close()  # 失敗したページを閉じる
 
         # エラーメッセージをログに記録
-        logging.error(f"Request failed: {failure.request.url}, Reason: {failure.value}")
+        logger.error(f"Request failed: {failure.request.url}, Reason: {failure.value}")
         
         # ItemLoaderを使ってデータを格納。エラーが発生した場合はURL以外'Error'を格納。
         loader = ItemLoader(item=YahooItem(), response=failure.request)
@@ -178,3 +181,4 @@ class NewsSpider(scrapy.Spider):
         yield loader.load_item()
         
         post_slack(f"Yahoo Newsのスクレイピングに失敗した記事があります：{failure.request.url}")
+        self.error_count += 1 # エラー記事数をカウント

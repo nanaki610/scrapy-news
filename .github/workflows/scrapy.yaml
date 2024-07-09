@@ -1,0 +1,70 @@
+name: Scrape yahoo news and send to slack # GitHub Actionsのワークフローの名前を設定します。
+
+on: # このワークフローがトリガーされる条件を定義します。
+  push: # pushイベントが発生したとき
+    branches: main # mainブランチに対するpushのみを対象とします。
+  workflow_dispatch: # このワークフローを手動でトリガーすることを許可します。
+
+jobs: # ワークフローで実行されるジョブを定義します。
+  build: # ジョブの名前を定義します。
+    runs-on: ubuntu-latest # ジョブが実行される環境を指定します。
+
+    steps: # ジョブ内で実行されるステップを定義します。
+      - name: Checkout repository # ステップの名前を設定します。
+        uses: actions/checkout@v2 # GitHubリポジトリのコードをチェックアウトするためのアクションを使用します。
+
+      - name: Set up Python 3.8 # ステップの名前を設定します。
+        uses: actions/setup-python@v2 # Python環境をセットアップするためのアクションを使用します。
+        with:
+          python-version: 3.8 # 使用するPythonのバージョンを指定します。
+
+      - name: Install Poetry # ステップの名前を設定します。
+        run: | # シェルコマンドを実行します。
+          curl -sSL https://install.python-poetry.org | python3 -
+          export PATH="$HOME/.local/bin:$PATH"
+          poetry --version
+
+      - name: Install dependencies # ステップの名前を設定します。
+        run: poetry install # Poetryを使用して依存関係をインストールします。
+
+      - name: Install Playwright # Playwrightをインストールします。
+        run: poetry run playwright install
+
+      - name: Create dot env file # ステップの名前を設定します。
+        shell: bash # 使用するシェルを指定します。
+        run: | # シェルコマンドを実行します。
+          touch .env
+          echo "SLACK_WEBHOOK_URL=${{secrets.SLACK_WEBHOOK_URL}}" >> .env
+
+      - name: Run scrapy # ステップの名前を設定します。
+        run: poetry run python yahoo/run_scrapy.py # Poetryを使用してScrapyスクリプトを実行します。(この行には誤りがあります。ファイル拡張子は `.py` であるべきです。)
+
+      - name: Upload artifacts # ステップの名前を設定します。
+        if: success()
+        uses: actions/upload-artifact@v2 # 成果物をアップロードするためのアクションを使用します。
+        with:
+          name: yahoo-news-artifacts # アップロードする成果物の名前を設定します。
+          path: | # アップロードするファイルまたはディレクトリのパスを指定します。
+            yahoo_news.csv
+            yahoo.db
+
+      - name: Send to slack # ステップの名前を設定します。
+        if: success()
+        uses: slackapi/slack-github-action@v1.26.0 # Slackにメッセージを送信するためのアクションを使用します。
+        with:
+          payload: | # Slackに送信するメッセージの内容を定義します。
+            {
+              "text": "Github Actions実行結果: ${{ job.status }}\n${{ github.event.head_commit.url }}",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "Github Actions実行結果: ${{ job.status }}\n${{ github.event.head_commit.url }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }} # SlackのWebhook URLを環境変数として設定します。
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK # SlackのWebhookのタイプを指定します。
