@@ -100,6 +100,8 @@ class NewsSpider(scrapy.Spider):
                 callback=self.parse_article,
                 errback=self.errback,
             )
+            break
+        return
             
         # 次のページがある場合はリクエストを送信
         next_page_selector = response.css(NEXT_PAGE_SELECTOR).get()

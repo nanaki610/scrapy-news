@@ -27,7 +27,7 @@ ARTICLE_CONTENT_SELECTOR = 'div.article_body *::text'
 NEXT_PAGE_SELECTOR = 'ul.jOUhIY > li:last-of-type > a::attr(href)'
 TIMEOUT = 90000
 SLACK_WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL')
-SQLITE_PATH = os.getenv('SQLITE_PATH')
+SQLITE_PATH = "sqlite:///yahoo.db"
 
 # ログの設定
 LOG_LEVEL = 'INFO'
