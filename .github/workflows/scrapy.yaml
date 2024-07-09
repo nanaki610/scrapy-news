@@ -27,6 +27,9 @@ jobs: # ワークフローで実行されるジョブを定義します。
       - name: Install dependencies # ステップの名前を設定します。
         run: poetry install # Poetryを使用して依存関係をインストールします。
 
+      - name: Install Playwright # Playwrightをインストールします。
+        run: poetry run playwright install
+
       - name: Create dot env file # ステップの名前を設定します。
         shell: bash # 使用するシェルを指定します。
         run: | # シェルコマンドを実行します。
