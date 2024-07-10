@@ -4,6 +4,8 @@ on: # このワークフローがトリガーされる条件を定義します�
   push: # pushイベントが発生したとき
     branches: main # mainブランチに対するpushのみを対象とします。
   workflow_dispatch: # このワークフローを手動でトリガーすることを許可します。
+  schedule:
+    - cron: '0 14 * * *' # 日本時間の23時に毎日実行します。
 
 jobs: # ワークフローで実行されるジョブを定義します。
   build: # ジョブの名前を定義します。
@@ -47,6 +49,7 @@ jobs: # ワークフローで実行されるジョブを定義します。
           path: | # アップロードするファイルまたはディレクトリのパスを指定します。
             yahoo_news.csv
             yahoo.db
+          retention-days: 1 # 成果物を保持する日数を指定します。
 
       - name: Send to slack # ステップの名前を設定します。
         if: success()
