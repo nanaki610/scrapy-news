@@ -33,7 +33,7 @@ def spider_opened(spider): #スパイダーが開始したときに実行する�
 def spider_closed(spider, reason): #スパイダーが終了したときに実行する関数
   end_time = datetime.now(tokyo_timezone).strftime('%Y/%m/%d %H:%M')
   logger.info(f"[{reason}]スクレイピング終了時刻: {end_time}")
-  post_slack(f"Yahoo Newsのスクレイピングが完了しました。取得記事件数：{spider.pass_count}件/エラー件数：{spider.error_count}件")
+  post_slack(f"Yahoo Newsのスクレイピングが完了しました。\n掲載記事件数：{spider.total_articles}件/取得記事件数：{spider.pass_count}件/エラー件数：{spider.error_count}件")
   
 
 # Yahooニュースのスパイダーを実行
