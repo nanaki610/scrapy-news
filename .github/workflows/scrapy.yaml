@@ -59,13 +59,13 @@ jobs: # ワークフローで実行されるジョブを定義します。
         with:
           payload: | # Slackに送信するメッセージの内容を定義します。
             {
-              "text": "Github Actions実行結果: ${{ job.status }}\nダウンロードリンク: ${{github.server_url}}/${{ github.repository }}/actions/runs/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.artifact-upload-step.outputs.artifact-id }}",
+              "text": "Github Actions実行結果: ${{ job.status }}\nダウンロードリンク: ${{github.server_url}}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.artifact-upload-step.outputs.artifact-id }}",
               "blocks": [
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "Github Actions実行結果: ${{ job.status }}\nダウンロードリンク: ${{github.server_url}}/${{ github.repository }}/actions/runs/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.artifact-upload-step.outputs.artifact-id }}"""
+                    "text": "Github Actions実行結果: ${{ job.status }}\nダウンロードリンク: ${{github.server_url}}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.artifact-upload-step.outputs.artifact-id }}"""
                   }
                 }
               ]
