@@ -82,9 +82,9 @@ class NewsSpider(scrapy.Spider):
             url = article.css(ARTICLE_LINK).get() # URLを取得
             
             # 取得した投稿日が今日ではない場合は処理を終了
-            # if post_date['date'] != today:
-            #     self.flag_today_article = False
-            #     break
+            if post_date['date'] != today:
+                self.flag_today_article = False
+                break
             
             # 記事のリンクに移動
             yield scrapy.Request(
