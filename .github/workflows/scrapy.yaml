@@ -48,9 +48,7 @@ jobs: # ワークフローで実行されるジョブを定義します。
         with:
           name: yahoo-news-artifacts # アップロードする成果物の名前を設定します。
           path: | # アップロードするファイルまたはディレクトリのパスを指定します。
-            yahoo_news.csv
-            yahoo.db
-            scrapy.log
+            hoge.txt
           retention-days: 1 # 成果物を保持する日数を指定します。
 
       - name: Send to slack # ステップの名前を設定します。
