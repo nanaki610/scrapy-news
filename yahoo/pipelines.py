@@ -49,12 +49,14 @@ class CsvPipeline:
         """
         # 重複チェック
         if item.get('url') in self.existing_urls:
+            logger.warning(f"[csv]取得した記事は既に保存済のためスキップします。リンク: {item.get('url')}")
             return item
 
         # アイテムを書き込む
         line = f"{item.get('title')},{item.get('article_number')},{item.get('post_date')},{item.get('url')},{item.get('article')}\n"
         self.file.write(line)
-        self.existing_urls.add(item.get('url'))
+        logger.info(f"[csv]記事が正常に保存されました。リンク: {item.get('url')}")
+        self.existing_urls.add(item.get('url'))  # 重複チェック用にURLを追加
         return item
     
 class SQLitePipeline:
@@ -147,12 +149,12 @@ class SQLAlchemyPipeline:
             )
             self.session.merge(article)
             self.session.commit()
-            logger.info(f"記事が正常に保存されました。リンク: {item.get('url')}")
+            logger.info(f"[DB]記事が正常に保存されました。リンク: {item.get('url')}")
         except SQLAlchemyError as e:
             #ユニーク成約の場合はログレベルをwarningで出力し、それ以外のエラーはログレベルをerrorで出力
             if "UNIQUE constraint failed" in str(e):
-                logger.warning(f"取得した記事は既に保存済のためスキップします。リンク: {item.get('url')}")
+                logger.warning(f"[DB]取得した記事は既に保存済のためスキップします。リンク: {item.get('url')}")
             else:
-                logger.error(f"記事の保存中にエラーが発生しました。リンク: {item.get('url')}\n エラー内容: {e}")
+                logger.error(f"[DB]記事の保存中にエラーが発生しました。リンク: {item.get('url')}\n エラー内容: {e}")
             self.session.rollback()  # 変更をロールバック
         return item

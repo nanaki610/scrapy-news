@@ -32,6 +32,7 @@ class NewsSpider(scrapy.Spider):
     page_number = 1
     article_number = 1
     flag_today_article = True
+    fetch_count = 0
 
     def start_requests(self):
         """
@@ -72,6 +73,7 @@ class NewsSpider(scrapy.Spider):
         
         articles = response.css(ARTICLES_SELECTOR) # Scrapyのセレクタで記事を取得
         for (index, article) in enumerate(articles):
+            self.fetch_count += 1
             self.article_number = index + 1
             
             title = article.css(TITLE).get() # タイトルを取得
@@ -146,6 +148,8 @@ class NewsSpider(scrapy.Spider):
             loader.add_value('url', response.meta['url'])
             loader.add_value('article', article)
             yield loader.load_item()
+            self.pass_count += 1 # 取得記事数をカウント
+            
         else: # リンクがある場合はリンクをクリックして記事の内容を取得
             url = response.css(LINK_TO_ARTICLE_SELECTOR).attrib['href']
             yield scrapy.Request(
@@ -191,6 +195,7 @@ class NewsSpider(scrapy.Spider):
         else:
             logger.warning("特殊な記事ページの為、本文取得をスキップします")
             article = "特殊な記事ページの為、本文取得をスキップします"
+        await page.close()  # コンテンツ取得後にページを閉じる
         
         #記事の内容以外の情報をItemLoaderに格納
         loader = ItemLoader(item=YahooItem(), response=response)
@@ -201,7 +206,6 @@ class NewsSpider(scrapy.Spider):
         loader.add_value('article', article) # 記事の内容を格納
         yield loader.load_item() # ItemLoaderを使ってデータを格納
         self.pass_count += 1 # 取得記事数をカウント
-        await page.close()  # コンテンツ取得後にページを閉じる
 
     async def errback(self, failure):
         """
