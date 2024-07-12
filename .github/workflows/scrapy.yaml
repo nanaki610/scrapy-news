@@ -46,9 +46,7 @@ jobs: # ワークフローで実行されるジョブを定義します。
         uses: actions/upload-artifact@v4 # 成果物をアップロードするためのアクションを使用します。
         id: artifact-upload-step
         with:
-          name: yahoo-news-artifacts # アップロードする成果物の名前を設定します。
-          path: | # アップロードするファイルまたはディレクトリのパスを指定します。
-            hoge.txt
+          path: hoge.txt
           retention-days: 1 # 成果物を保持する日数を指定します。
 
       - name: Send to slack # ステップの名前を設定します。
