@@ -2,8 +2,13 @@ name: Scrape yahoo news and send to slack # GitHub Actionsのワークフロー�
 
 on: # このワークフローがトリガーされる条件を定義します。
   push: # pushイベントが発生したとき
-    branches: main # mainブランチに対するpushのみを対象とします。
+  #mainブランチとdevブランチのpushをトリガーにする
+    branches: 
+      - main
+      - dev
   workflow_dispatch: # このワークフローを手動でトリガーすることを許可します。
+  schedule:
+    - cron: '0 14 * * *' # 日本時間の23時に毎日実行します。
 
 jobs: # ワークフローで実行されるジョブを定義します。
   build: # ジョブの名前を定義します。
@@ -41,12 +46,15 @@ jobs: # ワークフローで実行されるジョブを定義します。
 
       - name: Upload artifacts # ステップの名前を設定します。
         if: success()
-        uses: actions/upload-artifact@v2 # 成果物をアップロードするためのアクションを使用します。
+        uses: actions/upload-artifact@v4 # 成果物をアップロードするためのアクションを使用します。
+        id: artifact-upload-step
         with:
           name: yahoo-news-artifacts # アップロードする成果物の名前を設定します。
           path: | # アップロードするファイルまたはディレクトリのパスを指定します。
             yahoo_news.csv
             yahoo.db
+            scrapy.log
+          retention-days: 1 # 成果物を保持する日数を指定します。
 
       - name: Send to slack # ステップの名前を設定します。
         if: success()
@@ -54,13 +62,13 @@ jobs: # ワークフローで実行されるジョブを定義します。
         with:
           payload: | # Slackに送信するメッセージの内容を定義します。
             {
-              "text": "Github Actions実行結果: ${{ job.status }}\n${{ github.event.head_commit.url }}",
+              "text": "Github Actions実行結果: ${{ job.status }}\nダウンロードリンク: ${{github.server_url}}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.artifact-upload-step.outputs.artifact-id }}",
               "blocks": [
                 {
                   "type": "section",
                   "text": {
                     "type": "mrkdwn",
-                    "text": "Github Actions実行結果: ${{ job.status }}\n${{ github.event.head_commit.url }}"
+                    "text": "Github Actions実行結果: ${{ job.status }}\nダウンロードリンク: ${{github.server_url}}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts/${{ steps.artifact-upload-step.outputs.artifact-id }}"
                   }
                 }
               ]

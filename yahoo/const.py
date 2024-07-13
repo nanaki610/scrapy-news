@@ -18,12 +18,24 @@ load_dotenv()
 
 import os
 
+#URL
 BASE_URL = 'https://news.yahoo.co.jp'
 TOP_PICS_URL = 'https://news.yahoo.co.jp/topics/top-picks'
+
+##selector
+#item selector
+TITLE = 'div.newsFeed_item_title::text'
+POST_DATE = 'time.newsFeed_item_date::text'
+ARTICLE_LINK = 'a.newsFeed_item_link::attr(href)'
+
+#other selector
+ARTICLES_SELECTOR = 'li.newsFeed_item'
 TOP_PICS_SELECTOR = 'div#uamods-topics'
+TOTAL_ARTICLES_SELECTOR = 'span.eFboGc::text'
 ARTICLE_SELECTOR = 'article[id*=uamods]'
 LINK_TO_ARTICLE_SELECTOR = 'a.bxbqJP'
 ARTICLE_CONTENT_SELECTOR = 'div.article_body *::text'
+HEADLINE_CONTENT_SELECTOR = 'section.cOJYgv *::text'
 NEXT_PAGE_SELECTOR = 'ul.jOUhIY > li:last-of-type > a::attr(href)'
 TIMEOUT = 90000
 SLACK_WEBHOOK_URL = os.getenv('SLACK_WEBHOOK_URL')

@@ -17,6 +17,7 @@ from common_func import  post_slack, setup_logger
 from scrapy import signals
 from scrapy.signalmanager import dispatcher
 from const import LOG_LEVEL, LOG_FILE
+from pipelines import skip_csv_count, skip_DB_count, flag_use_csv, flag_use_DB
 
 # ロガーの設定
 # logger = setup_logger('news', 'scrapy.log', 'INFO')
@@ -33,8 +34,12 @@ def spider_opened(spider): #スパイダーが開始したときに実行する�
 def spider_closed(spider, reason): #スパイダーが終了したときに実行する関数
   end_time = datetime.now(tokyo_timezone).strftime('%Y/%m/%d %H:%M')
   logger.info(f"[{reason}]スクレイピング終了時刻: {end_time}")
-  post_slack(f"Yahoo Newsのスクレイピングが完了しました。取得記事件数：{spider.pass_count}件/エラー件数：{spider.error_count}件")
-  
+  if flag_use_csv and flag_use_DB:
+    post_slack(f"Yahoo Newsのスクレイピングが完了しました。\n掲載記事件数: {spider.total_articles}件/取得記事件数: {spider.fetch_count}件/登録記事件数: {spider.pass_count}件/エラー件数: {spider.error_count}件\n csv登録スキップ件数: {skip_csv_count}件/DB登録スキップ件数: {skip_DB_count}件")
+  elif flag_use_csv:
+    post_slack(f"Yahoo Newsのスクレイピングが完了しました。\n掲載記事件数: {spider.total_articles}件/取得記事件数: {spider.fetch_count}件/登録記事件数: {spider.pass_count}件/エラー件数: {spider.error_count}件\n csv登録スキップ件数: {skip_csv_count}件")
+  elif flag_use_DB:
+    post_slack(f"Yahoo Newsのスクレイピングが完了しました。\n掲載記事件数: {spider.total_articles}件/取得記事件数: {spider.fetch_count}件/登録記事件数: {spider.pass_count}件/エラー件数: {spider.error_count}件\n DB登録スキップ件数: {skip_DB_count}件")
 
 # Yahooニュースのスパイダーを実行
 process = CrawlerProcess(settings = get_project_settings()) # Scrapyのプロジェクト設定を読み込み
