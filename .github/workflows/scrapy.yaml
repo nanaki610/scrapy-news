@@ -3,9 +3,9 @@ name: Scrape yahoo news and send to slack # GitHub Actionsのワークフロー�
 on: # このワークフローがトリガーされる条件を定義します。
   push: # pushイベントが発生したとき
   #mainブランチとdevブランチのpushをトリガーにする
-    branches: |
-      main
-      dev
+    branches: 
+      - main
+      - dev
   workflow_dispatch: # このワークフローを手動でトリガーすることを許可します。
   schedule:
     - cron: '0 14 * * *' # 日本時間の23時に毎日実行します。
