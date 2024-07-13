@@ -15,6 +15,10 @@ from const import LOG_LEVEL, LOG_FILE
 # ロガーの設定
 # logger = setup_logger('news', 'scrapy.log', 'INFO')
 logger = setup_logger('news', LOG_FILE, LOG_LEVEL)
+skip_csv_count = 0
+skip_DB_count = 0
+flag_use_csv = False
+flag_use_DB = False
 
 class CsvPipeline:
     """
@@ -28,6 +32,9 @@ class CsvPipeline:
         """
         CSVファイルを開き、ヘッダーを書き込みます (新規作成の場合)。
         """
+        global flag_use_csv
+        flag_use_csv = True
+        
         self.file = open("yahoo_news.csv", "a+", newline='', encoding='utf-8')
         self.file.seek(0)
         self.existing_urls = set(line.split(',')[3].strip() for line in self.file.readlines())
@@ -50,6 +57,8 @@ class CsvPipeline:
         # 重複チェック
         if item.get('url') in self.existing_urls:
             logger.warning(f"[csv]取得した記事は既に保存済のためスキップします。リンク: {item.get('url')}")
+            global skip_csv_count
+            skip_csv_count += 1
             return item
 
         # アイテムを書き込む
@@ -59,54 +68,54 @@ class CsvPipeline:
         self.existing_urls.add(item.get('url'))  # 重複チェック用にURLを追加
         return item
     
-class SQLitePipeline:
-    """
-    スクレイピングしたアイテムをSQLiteデータベースに保存するパイプラインです。
+# class SQLitePipeline:
+#     """
+#     スクレイピングしたアイテムをSQLiteデータベースに保存するパイプラインです。
 
-    このパイプラインは、スパイダーの開始時にSQLiteデータベースへの接続を開き、
-    記事用のテーブルが存在しない場合は作成します。このパイプラインによって処理された
-    各アイテムは、記事テーブルに挿入されます。同じURLを持つアイテムがデータベースに
-    既に存在する場合、挿入は無視されます。これにより、各記事が一度だけ保存されることが保証されます。
-    """
-    def open_spider(self, spider):
-        """
-        SQLiteデータベース接続を開き、記事テーブルが存在しない場合は作成します。
-        """
-        self.connection = sqlite3.connect("yahoo_news.db")
-        self.cursor = self.connection.cursor()
-        self.cursor.execute("""
-            CREATE TABLE IF NOT EXISTS articles (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                title TEXT,
-                article_number TEXT,
-                post_date TEXT,
-                url TEXT UNIQUE,
-                article TEXT
-            )
-        """)
+#     このパイプラインは、スパイダーの開始時にSQLiteデータベースへの接続を開き、
+#     記事用のテーブルが存在しない場合は作成します。このパイプラインによって処理された
+#     各アイテムは、記事テーブルに挿入されます。同じURLを持つアイテムがデータベースに
+#     既に存在する場合、挿入は無視されます。これにより、各記事が一度だけ保存されることが保証されます。
+#     """
+#     def open_spider(self, spider):
+#         """
+#         SQLiteデータベース接続を開き、記事テーブルが存在しない場合は作成します。
+#         """
+#         self.connection = sqlite3.connect("yahoo_news.db")
+#         self.cursor = self.connection.cursor()
+#         self.cursor.execute("""
+#             CREATE TABLE IF NOT EXISTS articles (
+#                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+#                 title TEXT,
+#                 article_number TEXT,
+#                 post_date TEXT,
+#                 url TEXT UNIQUE,
+#                 article TEXT
+#             )
+#         """)
 
-    def close_spider(self, spider):
-        """
-        変更をコミットし、SQLiteデータベース接続を閉じます。
-        """
-        self.connection.commit()
-        self.connection.close()
+#     def close_spider(self, spider):
+#         """
+#         変更をコミットし、SQLiteデータベース接続を閉じます。
+#         """
+#         self.connection.commit()
+#         self.connection.close()
 
-    def process_item(self, item, spider):
-        """
-        各アイテムを処理し、データベースの記事テーブルに挿入します。
-        同じURLを持つアイテムが既に存在する場合、挿入は無視されます。
-        """
-        self.cursor.execute("""
-            INSERT OR IGNORE INTO articles (title, article_number, post_date, url, article) VALUES (?, ?, ?, ?, ?)
-        """, (
-            item.get('title'),
-            item.get('article_number'),
-            item.get('post_date'),
-            item.get('url'),
-            item.get('article')
-        ))
-        return item
+#     def process_item(self, item, spider):
+#         """
+#         各アイテムを処理し、データベースの記事テーブルに挿入します。
+#         同じURLを持つアイテムが既に存在する場合、挿入は無視されます。
+#         """
+#         self.cursor.execute("""
+#             INSERT OR IGNORE INTO articles (title, article_number, post_date, url, article) VALUES (?, ?, ?, ?, ?)
+#         """, (
+#             item.get('title'),
+#             item.get('article_number'),
+#             item.get('post_date'),
+#             item.get('url'),
+#             item.get('article')
+#         ))
+#         return item
     
 class SQLAlchemyPipeline:
     """
@@ -117,10 +126,13 @@ class SQLAlchemyPipeline:
     各アイテムは、記事テーブルに挿入されます。同じURLを持つアイテムがデータベースに
     既に存在する場合、挿入は無視されます。これにより、各記事が一度だけ保存されることが保証されます。
     """
+    
     def open_spider(self, spider):
         """
         データベースセッションを開き、記事テーブルが存在しない場合は作成します。
         """
+        global flag_use_DB
+        flag_use_DB = True
         try:
             self.session = Session()
             Base.metadata.create_all(bind=self.session.get_bind())
@@ -154,6 +166,8 @@ class SQLAlchemyPipeline:
             #ユニーク成約の場合はログレベルをwarningで出力し、それ以外のエラーはログレベルをerrorで出力
             if "UNIQUE constraint failed" in str(e):
                 logger.warning(f"[DB]取得した記事は既に保存済のためスキップします。リンク: {item.get('url')}")
+                global skip_DB_count
+                skip_DB_count += 1
             else:
                 logger.error(f"[DB]記事の保存中にエラーが発生しました。リンク: {item.get('url')}\n エラー内容: {e}")
             self.session.rollback()  # 変更をロールバック

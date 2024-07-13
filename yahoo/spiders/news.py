@@ -63,7 +63,7 @@ class NewsSpider(scrapy.Spider):
         """
         logger.info("start_parse")
         self.total_articles = response.css(TOTAL_ARTICLES_SELECTOR).get().replace("件","") # 掲載記事数を取得
-        logger.info(f"掲載記事件数：{self.total_articles}件")
+        logger.info(f"掲載記事件数: {self.total_articles}件")
         page = response.meta.get('playwright_page')
         if page:
             screenshot = await page.screenshot(path=f"SS/page{self.page_number}.png", full_page=True)
@@ -73,18 +73,20 @@ class NewsSpider(scrapy.Spider):
         
         articles = response.css(ARTICLES_SELECTOR) # Scrapyのセレクタで記事を取得
         for (index, article) in enumerate(articles):
-            self.fetch_count += 1
             self.article_number = index + 1
             
             title = article.css(TITLE).get() # タイトルを取得
             article_number = f"{self.page_number}-{self.article_number}" # 記事番号を取得
             post_date = convert_date(article.css(POST_DATE).get()) # 投稿日を取得
             url = article.css(ARTICLE_LINK).get() # URLを取得
-            
             # 取得した投稿日が今日ではない場合は処理を終了
-            if post_date['date'] != today:
-                self.flag_today_article = False
-                break
+            # if post_date['date'] != today:
+            #     self.flag_today_article = False
+            #     logger.info("前日の記事を取得したため終了します")
+            #     break
+            
+            self.fetch_count += 1
+            logger.info(f"[start_parse]記事取得: {self.fetch_count}回目 記事番号: {article_number} タイトル: {title} 投稿日: {post_date['date']} {post_date['time']} URL: {url}")
             
             # 記事のリンクに移動
             yield scrapy.Request(
@@ -105,8 +107,9 @@ class NewsSpider(scrapy.Spider):
                 # callback=self.parse_article,
                 callback=self.parse_headline,
                 errback=self.errback,
+                dont_filter=True,
             )
-            await asyncio.sleep(5) # ページ遷移のために5秒待機
+            await asyncio.sleep(10) # ページ遷移のために10秒待機
             
         # 次のページがある場合はリクエストを送信
         next_page_selector = response.css(NEXT_PAGE_SELECTOR).get()
@@ -124,6 +127,7 @@ class NewsSpider(scrapy.Spider):
                 },
                 callback=self.start_parse,
                 errback=self.errback,
+                dont_filter=True,
             )
 
     async def parse_headline(self, response):
@@ -134,6 +138,7 @@ class NewsSpider(scrapy.Spider):
         :param response: ページのレスポンス
         """
         logger.info("parse_headline")
+        logger.info(f"[parse_headline]記事取得: {self.fetch_count}回目 記事番号: {response.meta['article_number']} タイトル: {response.meta['title']} 投稿日: {response.meta['post_date']} URL: {response.meta['url']}")
         page = response.meta.get('playwright_page')
         await page.close() # Playwrightのページを閉じる
         
@@ -151,6 +156,7 @@ class NewsSpider(scrapy.Spider):
             self.pass_count += 1 # 取得記事数をカウント
             
         else: # リンクがある場合はリンクをクリックして記事の内容を取得
+            
             url = response.css(LINK_TO_ARTICLE_SELECTOR).attrib['href']
             yield scrapy.Request(
                 url,
@@ -168,6 +174,7 @@ class NewsSpider(scrapy.Spider):
                 },
                 callback=self.parse_article,
                 errback=self.errback,
+                dont_filter=True,
             )
 
     async def parse_article(self, response):
@@ -178,6 +185,7 @@ class NewsSpider(scrapy.Spider):
         :return: 記事のHTMLコンテンツ
         """
         logger.info("parse_article")
+        logger.info(f"[parse_article]記事取得: {self.fetch_count}回目 記事番号: {response.meta['article_number']} タイトル: {response.meta['title']} 投稿日: {response.meta['post_date']} URL: {response.meta['url']}")
         page = response.meta.get('playwright_page')
         # 記事の内容を取得する前にページのコンテンツを取得
         content = await page.content()
@@ -215,6 +223,7 @@ class NewsSpider(scrapy.Spider):
         :param failure: 失敗したリクエストの情報
         """
         logger.info("errback")
+        logger.info(f"[errback]記事取得: {self.fetch_count}回目 記事番号: {self.page_number}-{self.article_number} タイトル: {failure.request.meta.get('title')} 投稿日: {failure.request.meta.get('post_date')} URL: {failure.request.url}")
         page = failure.request.meta.get("playwright_page")
         if page:
             screenshot = await page.screenshot(path=f"SS/error{self.page_number}-{self.article_number}.png", full_page=True)
@@ -232,5 +241,5 @@ class NewsSpider(scrapy.Spider):
         loader.add_value('article', 'Error')
         yield loader.load_item()
         
-        post_slack(f"Yahoo Newsのスクレイピングに失敗した記事があります：{failure.request.url}")
+        post_slack(f"Yahoo Newsのスクレイピングに失敗した記事があります: {failure.request.url}")
         self.error_count += 1 # エラー記事数をカウント
