@@ -98,8 +98,6 @@ DOWNLOAD_HANDLERS = {
 DOWNLOADER_MIDDLEWARES_BASE = {
     'scrapy.downloadermiddlewares.retry.RetryMiddleware': 500,
 }
-RETRY_ENABLED=True
-RETRY_TIMES=3
 
 TWISTED_REACTOR = "twisted.internet.asyncioreactor.AsyncioSelectorReactor"
 FEED_EXPORT_ENCODING = 'utf-8'
