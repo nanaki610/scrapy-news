@@ -89,8 +89,11 @@ def post_slack(text="test投稿"):
     }
 
     # SlackにPOSTリクエストを送信
-    requests.post(web_hook_url, data=json.dumps(message))
-    
+    try:
+        requests.post(web_hook_url, data=json.dumps(message))
+    except requests.exceptions.RequestException as e:
+        print(f"Slackへの投稿に失敗しました: {e}")
+        
 def setup_logger(logger_name='python', log_file='execute.log', level='INFO'):
     """
     特定のロガーのログレベルを設定し、ログファイルを準備する関数。

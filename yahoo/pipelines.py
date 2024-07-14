@@ -15,10 +15,6 @@ from const import LOG_LEVEL, LOG_FILE
 # ロガーの設定
 # logger = setup_logger('news', 'scrapy.log', 'INFO')
 logger = setup_logger('news', LOG_FILE, LOG_LEVEL)
-skip_csv_count = 0
-skip_DB_count = 0
-flag_use_csv = False
-flag_use_DB = False
 
 class CsvPipeline:
     """
@@ -28,12 +24,12 @@ class CsvPipeline:
     記事のタイトル、記事番号、投稿日、URL、本文を含む各アイテムを書き込みます。
     ただし、urlがすでにファイルに存在する場合、アイテムは無視されます。
     """
+
     def open_spider(self, spider):
         """
         CSVファイルを開き、ヘッダーを書き込みます (新規作成の場合)。
         """
-        global flag_use_csv
-        flag_use_csv = True
+        spider.flag_use_csv = True
         
         self.file = open("yahoo_news.csv", "a+", newline='', encoding='utf-8')
         self.file.seek(0)
@@ -57,8 +53,7 @@ class CsvPipeline:
         # 重複チェック
         if item.get('url') in self.existing_urls:
             logger.warning(f"[csv]取得した記事は既に保存済のためスキップします。リンク: {item.get('url')}")
-            global skip_csv_count
-            skip_csv_count += 1
+            spider.skip_csv_count += 1
             return item
 
         # アイテムを書き込む
@@ -126,13 +121,14 @@ class SQLAlchemyPipeline:
     各アイテムは、記事テーブルに挿入されます。同じURLを持つアイテムがデータベースに
     既に存在する場合、挿入は無視されます。これにより、各記事が一度だけ保存されることが保証されます。
     """
+    skip_DB_count = 0
+    flag_use_DB = False
     
     def open_spider(self, spider):
         """
         データベースセッションを開き、記事テーブルが存在しない場合は作成します。
         """
-        global flag_use_DB
-        flag_use_DB = True
+        spider.flag_use_DB = True
         try:
             self.session = Session()
             Base.metadata.create_all(bind=self.session.get_bind())
@@ -166,8 +162,7 @@ class SQLAlchemyPipeline:
             #ユニーク成約の場合はログレベルをwarningで出力し、それ以外のエラーはログレベルをerrorで出力
             if "UNIQUE constraint failed" in str(e):
                 logger.warning(f"[DB]取得した記事は既に保存済のためスキップします。リンク: {item.get('url')}")
-                global skip_DB_count
-                skip_DB_count += 1
+                spider.skip_DB_count += 1
             else:
                 logger.error(f"[DB]記事の保存中にエラーが発生しました。リンク: {item.get('url')}\n エラー内容: {e}")
             self.session.rollback()  # 変更をロールバック

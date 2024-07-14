@@ -42,7 +42,10 @@ jobs: # ワークフローで実行されるジョブを定義します。
           echo "SLACK_WEBHOOK_URL=${{secrets.SLACK_WEBHOOK_URL}}" >> .env
 
       - name: Run scrapy # ステップの名前を設定します。
-        run: poetry run python yahoo/run_scrapy.py # Poetryを使用してScrapyスクリプトを実行します。(この行には誤りがあります。ファイル拡張子は `.py` であるべきです。)
+        # メモリ不足エラーを回避するために、NODE_OPTIONS環境変数を設定した後にScrapyスクリプトを実行します。
+        run: |
+         export NODE_OPTIONS=--max_old_space_size=4096
+         poetry run python yahoo/run_scrapy.py
 
       - name: Upload artifacts # ステップの名前を設定します。
         if: success()

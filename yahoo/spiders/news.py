@@ -33,6 +33,17 @@ class NewsSpider(scrapy.Spider):
     article_number = 1
     flag_today_article = True
     fetch_count = 0
+    
+    #pipelineクラスで使用
+    flag_use_csv = False
+    flag_use_DB = False
+    skip_csv_count = 0
+    skip_DB_count = 0
+    
+    def __init__(self, *args, **kwargs):
+        super(NewsSpider, self).__init__(*args, **kwargs)
+        self.csv_pipeline = None
+        self.db_pipeline = None
 
     def start_requests(self):
         """
@@ -67,7 +78,7 @@ class NewsSpider(scrapy.Spider):
         page = response.meta.get('playwright_page')
         if page:
             screenshot = await page.screenshot(path=f"SS/page{self.page_number}.png", full_page=True)
-        await page.close() # Playwrightのページを閉じる
+            await page.close() # Playwrightのページを閉じる
         
         today = get_today() # 今日の日付を取得
         
@@ -140,7 +151,8 @@ class NewsSpider(scrapy.Spider):
         logger.info("parse_headline")
         logger.info(f"[parse_headline]記事取得: {self.fetch_count}回目 記事番号: {response.meta['article_number']} タイトル: {response.meta['title']} 投稿日: {response.meta['post_date']} URL: {response.meta['url']}")
         page = response.meta.get('playwright_page')
-        await page.close() # Playwrightのページを閉じる
+        if page:
+            await page.close() # Playwrightのページを閉じる
         
         # ページ内にLINK_TO_ARTICLE_SELECTORが存在するか確認
         if not response.css(LINK_TO_ARTICLE_SELECTOR):
@@ -227,19 +239,28 @@ class NewsSpider(scrapy.Spider):
         page = failure.request.meta.get("playwright_page")
         if page:
             screenshot = await page.screenshot(path=f"SS/error{self.page_number}-{self.article_number}.png", full_page=True)
-        await page.close()  # 失敗したページを閉じる
+            await page.close()  # 失敗したページを閉じる
 
         # エラーメッセージをログに記録
         logger.error(f"Request failed: {failure.request.url}, Reason: {failure.value}")
         
-        # ItemLoaderを使ってデータを格納。エラーが発生した場合はURL以外'Error'を格納。
-        loader = ItemLoader(item=YahooItem(), response=failure.request)
-        loader.add_value('title', 'Error')
-        loader.add_value('article_number', 'Error')
-        loader.add_value('post_date', 'Error')
-        loader.add_value('url', failure.request.url)
-        loader.add_value('article', 'Error')
-        yield loader.load_item()
+        # リトライ回数を取得
+        retry_times = self.settings.get('RETRY_TIMES', 0)
+        retry_count = failure.request.meta.get('retry_times', 0)
         
-        post_slack(f"Yahoo Newsのスクレイピングに失敗した記事があります: {failure.request.url}")
-        self.error_count += 1 # エラー記事数をカウント
+        if retry_times == retry_count:
+            post_slack(f"Yahoo Newsのスクレイピングに失敗した記事があります: {failure.request.url}")
+            self.error_count += 1
+            # ItemLoaderを使ってデータを格納。エラーが発生した場合はURL以外'Error'を格納。
+            loader = ItemLoader(item=YahooItem(), response=failure.request)
+            loader.add_value('title', 'Error')
+            loader.add_value('article_number', 'Error')
+            loader.add_value('post_date', 'Error')
+            loader.add_value('url', failure.request.url)
+            loader.add_value('article', 'Error')
+            yield loader.load_item()
+        else:
+            logger.info(f"エラー発生のためリトライします。URL: {failure.request.url}\nリトライ回数: {retry_count}/{retry_times}")
+        
+        # post_slack(f"Yahoo Newsのスクレイピングに失敗した記事があります: {failure.request.url}")
+        # self.error_count += 1 # エラー記事数をカウント
