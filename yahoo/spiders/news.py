@@ -86,10 +86,10 @@ class NewsSpider(scrapy.Spider):
             post_date = convert_date(article.css(POST_DATE).get()) # 投稿日を取得
             url = article.css(ARTICLE_LINK).get() # URLを取得
             # 取得した投稿日が今日ではない場合は処理を終了
-            if post_date['date'] != today:
-                self.flag_today_article = False
-                logger.info("前日の記事を取得したため終了します")
-                break
+            # if post_date['date'] != today:
+            #     self.flag_today_article = False
+            #     logger.info("前日の記事を取得したため終了します")
+            #     break
             
             #年跨ぎを考慮
             if int(post_date['date']) <= int(today): #年跨ぎしていない場合
