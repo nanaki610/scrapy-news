@@ -50,14 +50,14 @@ def spider_closed(spider, reason): #スパイダーが終了したときに実�
   end_time = datetime.now(tokyo_timezone).strftime('%Y/%m/%d %H:%M')
   logger.info(f"[{reason}]スクレイピング終了時刻: {end_time}")
   
-  if spider.flag_use_csv and spider.flag_use_DB:
-    post_slack(f"Yahoo Newsのスクレイピングが完了しました。\n掲載記事件数: {spider.total_articles}件/取得記事件数: {spider.fetch_count}件/登録記事件数: {spider.pass_count}件/エラー件数: {spider.error_count}件\n csv登録済の記事件数: {spider.skip_csv_count}件/DB登録済の記事件数: {spider.skip_DB_count}件")
-  elif spider.flag_use_csv:
-    post_slack(f"Yahoo Newsのスクレイピングが完了しました。\n掲載記事件数: {spider.total_articles}件/取得記事件数: {spider.fetch_count}件/登録記事件数: {spider.pass_count}件/エラー件数: {spider.error_count}件\n csv登録済の記事件数: {spider.skip_csv_count}件")
-  elif spider.flag_use_DB:
-    post_slack(f"Yahoo Newsのスクレイピングが完了しました。\n掲載記事件数: {spider.total_articles}件/取得記事件数: {spider.fetch_count}件/登録記事件数: {spider.pass_count}件/エラー件数: {spider.error_count}件\n DB登録済の記事件数: {spider.skip_DB_count}件")
-  else:
-    post_slack(f"Yahoo Newsのスクレイピングが完了しました。\n掲載記事件数: {spider.total_articles}件/取得記事件数: {spider.fetch_count}件/登録記事件数: {spider.pass_count}件/エラー件数: {spider.error_count}件")
+  slack_message = f"Yahoo Newsのスクレイピングが完了しました。\n掲載記事件数: {spider.total_articles}件/取得記事件数: {spider.fetch_count}件/登録記事件数: {spider.pass_count}件/エラー件数: {spider.error_count}件\n"
+  if spider.flag_use_csv:
+    slack_message += f"csv登録済の記事件数: {spider.skip_csv_count}件\n"
+  if spider.flag_use_DB:
+    slack_message += f"DB登録済の記事件数: {spider.skip_DB_count}件\n"
+  if spider.error_count > 0:
+    slack_message += f"{spider.error_article_info}"
+  post_slack(slack_message)
 
 # Yahooニュースのスパイダーを実行
 process = CrawlerProcess(settings = get_project_settings()) # Scrapyのプロジェクト設定を読み込み

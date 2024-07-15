@@ -127,7 +127,27 @@ class SlackNotificationMiddleware:
         return s
 
     def spider_error(self, failure, response, spider):
+        print("spider_error")
         retry_times = spider.settings.get('RETRY_TIMES', 0)
         #現在のリトライ回数を取得
         retry_count = response.meta.get('retry_times', 0)
         post_slack(f"スクレイピング中にエラーが発生しました。エラー内容: {failure.getErrorMessage()}\nリトライ回数: {retry_count}/{retry_times}\nURL: {response.url}")
+
+# リトライはerrbackメソッドで定義したので下記は使わない(コメントアウト)
+# class PlaywrightRetryMiddleware:
+    
+#     def process_exception(self, request, exception, spider):
+#         if 'playwright' in request.meta:
+#             spider.logger.error(f'Playwright timeout exception: {exception}')
+#             retry_times = request.meta.get('retry_times', 0)
+#             max_retry_times = spider.crawler.settings.getint('RETRY_TIMES', 3)
+            
+#             if retry_times < max_retry_times:
+#                 retry_times += 1
+#                 spider.logger.info(f'Retrying ({retry_times}/{max_retry_times}) for {request.url}')
+#                 retry_request = request.copy()
+#                 retry_request.meta['retry_times'] = retry_times
+#                 return retry_request
+#             else:
+#                 spider.logger.error(f'Giving up on {request.url} after {retry_times} retries')
+#         return None

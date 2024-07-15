@@ -53,9 +53,12 @@ SPIDER_MIDDLEWARES = {
 
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
-#DOWNLOADER_MIDDLEWARES = {
+DOWNLOADER_MIDDLEWARES = {
 #    'yahoo.middlewares.YahooDownloaderMiddleware': 543,
-#}
+   'yahoo.middlewares.SlackNotificationMiddleware': 543,
+#    'yahoo.middlewares.PlaywrightRetryMiddleware': 543,
+
+}
 
 # Enable or disable extensions
 # See https://docs.scrapy.org/en/latest/topics/extensions.html
@@ -109,3 +112,4 @@ PLAYWRIGHT_DEFAULT_NAVIGATION_TIMEOUT= 90000
 
 RETRY_ENABLED = True
 RETRY_TIMES = 3  # リトライ回数を3回に設定
+RETRY_HTTP_CODES = [500, 502, 503, 504, 400, 403, 404, 408, 429]  # リトライするステータスコードを指定

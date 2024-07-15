@@ -1,3 +1,6 @@
+"""
+Yahooニュースのトップピックスからニュース記事をスクレイピングするSpiderクラスを定義するモジュール。
+"""
 import asyncio
 import os
 import sys
@@ -14,25 +17,60 @@ parent_dir = os.path.dirname(current_dir)
 if parent_dir not in sys.path:
     sys.path.append(parent_dir)
     
-from const import ARTICLE_LINK,  ARTICLES_SELECTOR, HEADLINE_CONTENT_SELECTOR, LOG_LEVEL, LOG_FILE, BASE_URL, POST_DATE, TITLE, TOP_PICS_URL, TOP_PICS_SELECTOR, ARTICLE_SELECTOR, LINK_TO_ARTICLE_SELECTOR, NEXT_PAGE_SELECTOR, ARTICLE_CONTENT_SELECTOR, TIMEOUT, TOTAL_ARTICLES_SELECTOR
+from const import ARTICLE_LINK,  ARTICLES_SELECTOR, HEADLINE_CONTENT_SELECTOR, LOG_LEVEL, LOG_FILE, BASE_URL, POST_DATE, TARGET_TODAY, TITLE, TOP_PICS_URL, TOP_PICS_SELECTOR, ARTICLE_SELECTOR, LINK_TO_ARTICLE_SELECTOR, NEXT_PAGE_SELECTOR, ARTICLE_CONTENT_SELECTOR, TIMEOUT, TOTAL_ARTICLES_SELECTOR
 from common_func import convert_date, get_today, list2str, post_slack
 from items import YahooItem
 
 # ロガーの設定
-# logger = setup_logger('news', 'scrapy.log', 'INFO')
 logger = setup_logger('news', LOG_FILE, LOG_LEVEL)
+
 
 class NewsSpider(scrapy.Spider):
     """
     Yahooニュースのトップピックスからニュース記事をスクレイピングするSpiderクラス。
+    
+    スパイダーの動作：
+    1. スパイダーは最初にYahooニュースのトップピックスページにアクセスし、ページのスクリーンショットを取得し、
+       Yahooニュースのトップピックスページのセレクタがロードされるのを待つ。
+    2. Yahooニュースのトップピックスページから各ニュース記事に対してリクエストを行い、記事の内容を取得する。
+    3. 各ニュース記事のリンクがある場合は、リンクをクリックして記事の内容を取得する。
+    4. 記事の内容を取得したら、記事のタイトル、記事番号、投稿日、URL、本文をItemLoaderに格納し、
+       ItemLoaderを使ってデータを格納し、CSVファイルまたはデータベースに保存する。
+    5. ページの最後までスクレイピングした後、次のページがある場合はリクエストを送信する。
+    6. スクレイピングが完了したら、Slackにスクレイピングの結果を通知する。
+    エラー発生時は、3回までリトライする。
+    
+    methods:
+        start_requests: スパイダーの最初のリクエストを生成する。
+        start_parse: Yahooニュースのトップピックスページのレスポンスを処理し、各ニュース記事に対してリクエストを行う。
+        parse_headline: Yahooニュースのトップピックスページのニュース記事で、リンクがない記事の内容を取得する。
+        parse_article: 個別のニュース記事ページのレスポンスを処理し、記事の内容を取得する。
+        errback: リクエストが失敗した場合のエラーハンドリング。3回までリトライする。3回失敗した場合はエラー記事として保存する。
+    
+    Attributes:
+        name (str): スパイダーの名前
+        status (str): 進行中のステータス情報(メソッド名で管理)
+        pass_count (int): 登録成功した記事数
+        error_count (int): エラー記事数
+        page_number (int): ページ番号
+        article_number (int): 記事の番号
+        flag_today_article (bool): 当日の記事かどうかのフラグ(const.pyのTARGET_TODAY参照)
+        fetch_count (int): 現在の取得記事数
+        error_article_info (str): slack通知用のエラー記事情報
+        flag_use_csv (bool): CSVファイルを使用するかどうかのフラグ
+        flag_use_DB (bool): データベースを使用するかどうかのフラグ
+        skip_csv_count (int): CSVファイルに登録済の記事数
+        skip_DB_count (int): データベースに登録済の記事数
     """
     name = 'news'
+    status = ""
     pass_count = 0 # 取得記事数
     error_count = 0 # エラー記事数
     page_number = 1
     article_number = 1
     flag_today_article = True
     fetch_count = 0
+    error_article_info = None
     
     #pipelineクラスで使用
     flag_use_csv = False
@@ -46,6 +84,8 @@ class NewsSpider(scrapy.Spider):
         Yahooニュースのトップピックスページにアクセスし、ページのスクリーンショットを取得し、
         Yahooニュースのトップピックスページのセレクタがロードされるのを待つ。
         """
+        self.status = "start_requests"
+        logger.info(self.status)
         yield scrapy.Request(
             TOP_PICS_URL,
             meta={
@@ -63,11 +103,12 @@ class NewsSpider(scrapy.Spider):
     async def start_parse(self, response):
         """
         Yahooニュースのトップピックスページのレスポンスを処理し、各ニュース記事に対してリクエストを行う。
-        また、次のページがある場合はリクエストを送信する。
+        各ニュース記事の処理が完了したら、次のページがある場合はリクエストを送信する。
 
         :param response: ページのレスポンス
         """
-        logger.info("start_parse")
+        self.status = "start_parse"
+        logger.info(self.status)
         self.total_articles = response.css(TOTAL_ARTICLES_SELECTOR).get().replace("件","") # 掲載記事数を取得
         logger.info(f"掲載記事件数: {self.total_articles}件")
         page = response.meta.get('playwright_page')
@@ -85,19 +126,20 @@ class NewsSpider(scrapy.Spider):
             article_number = f"{self.page_number}-{self.article_number}" # 記事番号を取得
             post_date = convert_date(article.css(POST_DATE).get()) # 投稿日を取得
             url = article.css(ARTICLE_LINK).get() # URLを取得
-            # 取得した投稿日が今日ではない場合は処理を終了
-            # if post_date['date'] != today:
-            #     self.flag_today_article = False
-            #     logger.info("前日の記事を取得したため終了します")
-            #     break
+            
+            # 取得した投稿日が今日ではない場合は処理を終了(TARGET_TODAYがTrueの場合のみ:const.py参照)
+            if TARGET_TODAY and post_date['date'] != today:
+                self.flag_today_article = False
+                logger.info("前日の記事を取得したため終了します")
+                break
             
             #年跨ぎを考慮
-            if int(post_date['date']) <= int(today): #年跨ぎしていない場合
+            if int(post_date['date']) <= int(today): #取得した記事の投稿日が今年の場合
                 post_date = f"{get_this_year()}{post_date['date']}{post_date['time']}"
-            else: #年跨ぎの場合
+            else: #取得した記事の投稿日が昨年の場合
                 post_date = f"{int(get_this_year())-1}{post_date['date']}{post_date['time']}"
                 
-            self.fetch_count += 1
+            self.fetch_count += 1 # 現在の取得記事数をカウント
             logger.info(f"[start_parse]記事取得: {self.fetch_count}回目 記事番号: {article_number} タイトル: {title} 投稿日: {post_date} URL: {url}")
             
             # 記事のリンクに移動
@@ -108,15 +150,12 @@ class NewsSpider(scrapy.Spider):
                     'playwright_include_page': True,
                     'playwright_page_methods': [
                         PageMethod('wait_for_selector', ARTICLE_SELECTOR, timeout=TIMEOUT),
-                        # PageMethod('click', LINK_TO_ARTICLE_SELECTOR),
-                        # PageMethod('wait_for_selector', ARTICLE_SELECTOR, timeout=TIMEOUT),
                     ],
                     'title': title,
                     'article_number': article_number,
                     'post_date': post_date,
                     'url': url,
                 },
-                # callback=self.parse_article,
                 callback=self.parse_headline,
                 errback=self.errback,
                 dont_filter=True,
@@ -124,6 +163,8 @@ class NewsSpider(scrapy.Spider):
             await asyncio.sleep(10) # ページ遷移のために10秒待機
             
         # 次のページがある場合はリクエストを送信
+        self.status = "start_parse_next_page"
+        logger.info(self.status)
         next_page_selector = response.css(NEXT_PAGE_SELECTOR).get()
         if next_page_selector and self.flag_today_article:
             self.page_number += 1
@@ -144,12 +185,13 @@ class NewsSpider(scrapy.Spider):
 
     async def parse_headline(self, response):
         """
-        Yahooニュースのトップピックスページのニュース記事で、リンクがない記事の内容を取得する。
+        Yahooニュースのトップピックスページのニュース記事で、詳細リンクがない記事の内容を取得する。
         リンクがある記事の場合は、リンクをクリックして次のparse_articleメソッドを呼び出す。
 
         :param response: ページのレスポンス
         """
-        logger.info("parse_headline")
+        self.status = "parse_headline"
+        logger.info(self.status)
         logger.info(f"[parse_headline]記事取得: {self.fetch_count}回目 記事番号: {response.meta['article_number']} タイトル: {response.meta['title']} 投稿日: {response.meta['post_date']} URL: {response.meta['url']}")
         page = response.meta.get('playwright_page')
         if page:
@@ -167,7 +209,7 @@ class NewsSpider(scrapy.Spider):
             loader.add_value('url', response.meta['url'])
             loader.add_value('article', article)
             yield loader.load_item()
-            self.pass_count += 1 # 取得記事数をカウント
+            self.pass_count += 1 # 取得成功した記事数をカウント
             
         else: # リンクがある場合はリンクをクリックして記事の内容を取得
             url = response.css(LINK_TO_ARTICLE_SELECTOR).attrib['href']
@@ -193,11 +235,12 @@ class NewsSpider(scrapy.Spider):
     async def parse_article(self, response):
         """
         個別のニュース記事ページのレスポンスを処理し、記事の内容を取得する。
-
+        ただし、特殊な記事ページの場合は本文取得をスキップする。
+        
         :param response: ページのレスポンス
-        :return: 記事のHTMLコンテンツ
         """
-        logger.info("parse_article")
+        self.status = "parse_article"
+        logger.info(self.status)
         logger.info(f"[parse_article]記事取得: {self.fetch_count}回目 記事番号: {response.meta['article_number']} タイトル: {response.meta['title']} 投稿日: {response.meta['post_date']} URL: {response.meta['url']}")
         page = response.meta.get('playwright_page')
         # 記事の内容を取得する前にページのコンテンツを取得
@@ -226,7 +269,7 @@ class NewsSpider(scrapy.Spider):
         loader.add_value('url', response.meta['url'])
         loader.add_value('article', article) # 記事の内容を格納
         yield loader.load_item() # ItemLoaderを使ってデータを格納
-        self.pass_count += 1 # 取得記事数をカウント
+        self.pass_count += 1 # 取得成功した記事数をカウント
 
     async def errback(self, failure):
         """
@@ -243,14 +286,53 @@ class NewsSpider(scrapy.Spider):
             await page.close()  # 失敗したページを閉じる
 
         # リトライ回数を取得
-        retry_times = self.settings.get('RETRY_TIMES', 0)
-        retry_count = failure.request.meta.get('retry_times', 0)
+        max_retry_times = self.settings.get('RETRY_TIMES')
+        retry_times = failure.request.meta.get('retry_times', 0)
         
         # エラーメッセージをログに記録
         logger.error(f"Request failed: {failure.request.url}, Reason: {failure.value}")
         
-        if retry_times == retry_count:
-            post_slack(f"Yahoo Newsのスクレイピングに失敗した記事があります: {failure.request.url}")
+        if retry_times < max_retry_times:
+            logger.info(f"エラー発生のためリトライします。URL: {failure.request.url}\nリトライ回数: {retry_times}/{max_retry_times}")
+            retry_times += 1
+            
+            #statusによってscrapy.Requestのselectorとcallbackメソッドを変更
+            if self.status == "start_requests":
+                selector = TOP_PICS_SELECTOR
+                callback = self.start_parse
+            elif self.status == "start_parse":
+                selector = ARTICLE_SELECTOR
+                callback = self.parse_headline
+            elif self.status == "start_parse_next_page":
+                selector = TOP_PICS_SELECTOR
+                callback = self.start_parse
+            elif self.status == "parse_headline":
+                selector = ARTICLE_SELECTOR
+                callback = self.parse_article
+            elif self.status == "parse_article":
+                selector = ARTICLE_SELECTOR
+                callback = self.parse_article
+            
+            yield scrapy.Request(
+                failure.request.url,
+                meta={
+                    'playwright': True,
+                    'playwright_include_page': True,
+                    'playwright_page_methods': [
+                        PageMethod('wait_for_selector', selector, timeout=TIMEOUT),
+                    ],
+                    'title': failure.request.meta.get('title'),
+                    'article_number': failure.request.meta.get('article_number'),
+                    'post_date': failure.request.meta.get('post_date'),
+                    'url': failure.request.url,
+                    'retry_times': retry_times,
+                },
+                callback=callback,
+                errback=self.errback,
+                dont_filter=True,
+            )
+        else:
+            self.error_article_info += f"取得失敗した記事: {failure.request.url}\n"
             logger.info(f"Yahoo Newsのスクレイピングに失敗した記事があります: {failure.request.url}")
             self.error_count += 1
             # ItemLoaderを使ってデータを格納。エラーが発生した場合はURL以外'Error'を格納。
@@ -261,6 +343,4 @@ class NewsSpider(scrapy.Spider):
             loader.add_value('url', failure.request.url)
             loader.add_value('article', 'Error')
             yield loader.load_item()
-        else:
-            logger.info(f"エラー発生のためリトライします。URL: {failure.request.url}\nリトライ回数: {retry_count}/{retry_times}")
-            post_slack(f"エラー発生のためリトライします。URL: {failure.request.url}\nリトライ回数: {retry_count}/{retry_times}")
+            retry_times = 0 # リトライ回数をリセット
