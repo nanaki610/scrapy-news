@@ -54,62 +54,67 @@ class CsvPipeline:
             logger.warning(f"[csv]取得した記事は既に保存済のためスキップします。リンク: {item.get('url')}")
             spider.skip_csv_count += 1
             return item
+        
+        #titleとarticleはダブルクォートで囲む
+        title = f'"{item.get("title")}"'
+        article = f'"{item.get("article")}"'
 
         # アイテムを書き込む
-        line = f"{item.get('title')},{item.get('article_number')},{item.get('post_date')},{item.get('url')},{item.get('article')}\n"
+        line = f"{title},{item.get('article_number')},{item.get('post_date')},{item.get('url')},{article}\n"
         self.file.write(line)
         logger.info(f"[csv]記事が正常に保存されました。リンク: {item.get('url')}")
         self.existing_urls.add(item.get('url'))  # 重複チェック用にURLを追加
         return item
     
-# class SQLitePipeline:
-#     """
-#     スクレイピングしたアイテムをSQLiteデータベースに保存するパイプラインです。
+#SQLAlchemyPipelineがあるので使わない
+class SQLitePipeline:
+    """
+    スクレイピングしたアイテムをSQLiteデータベースに保存するパイプラインです。
 
-#     このパイプラインは、スパイダーの開始時にSQLiteデータベースへの接続を開き、
-#     記事用のテーブルが存在しない場合は作成します。このパイプラインによって処理された
-#     各アイテムは、記事テーブルに挿入されます。同じURLを持つアイテムがデータベースに
-#     既に存在する場合、挿入は無視されます。これにより、各記事が一度だけ保存されることが保証されます。
-#     """
-#     def open_spider(self, spider):
-#         """
-#         SQLiteデータベース接続を開き、記事テーブルが存在しない場合は作成します。
-#         """
-#         self.connection = sqlite3.connect("yahoo_news.db")
-#         self.cursor = self.connection.cursor()
-#         self.cursor.execute("""
-#             CREATE TABLE IF NOT EXISTS articles (
-#                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-#                 title TEXT,
-#                 article_number TEXT,
-#                 post_date TEXT,
-#                 url TEXT UNIQUE,
-#                 article TEXT
-#             )
-#         """)
+    このパイプラインは、スパイダーの開始時にSQLiteデータベースへの接続を開き、
+    記事用のテーブルが存在しない場合は作成します。このパイプラインによって処理された
+    各アイテムは、記事テーブルに挿入されます。同じURLを持つアイテムがデータベースに
+    既に存在する場合、挿入は無視されます。これにより、各記事が一度だけ保存されることが保証されます。
+    """
+    def open_spider(self, spider):
+        """
+        SQLiteデータベース接続を開き、記事テーブルが存在しない場合は作成します。
+        """
+        self.connection = sqlite3.connect("yahoo_news.db")
+        self.cursor = self.connection.cursor()
+        self.cursor.execute("""
+            CREATE TABLE IF NOT EXISTS articles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                title TEXT,
+                article_number TEXT,
+                post_date TEXT,
+                url TEXT UNIQUE,
+                article TEXT
+            )
+        """)
 
-#     def close_spider(self, spider):
-#         """
-#         変更をコミットし、SQLiteデータベース接続を閉じます。
-#         """
-#         self.connection.commit()
-#         self.connection.close()
+    def close_spider(self, spider):
+        """
+        変更をコミットし、SQLiteデータベース接続を閉じます。
+        """
+        self.connection.commit()
+        self.connection.close()
 
-#     def process_item(self, item, spider):
-#         """
-#         各アイテムを処理し、データベースの記事テーブルに挿入します。
-#         同じURLを持つアイテムが既に存在する場合、挿入は無視されます。
-#         """
-#         self.cursor.execute("""
-#             INSERT OR IGNORE INTO articles (title, article_number, post_date, url, article) VALUES (?, ?, ?, ?, ?)
-#         """, (
-#             item.get('title'),
-#             item.get('article_number'),
-#             item.get('post_date'),
-#             item.get('url'),
-#             item.get('article')
-#         ))
-#         return item
+    def process_item(self, item, spider):
+        """
+        各アイテムを処理し、データベースの記事テーブルに挿入します。
+        同じURLを持つアイテムが既に存在する場合、挿入は無視されます。
+        """
+        self.cursor.execute("""
+            INSERT OR IGNORE INTO articles (title, article_number, post_date, url, article) VALUES (?, ?, ?, ?, ?)
+        """, (
+            item.get('title'),
+            item.get('article_number'),
+            item.get('post_date'),
+            item.get('url'),
+            item.get('article')
+        ))
+        return item
     
 class SQLAlchemyPipeline:
     """

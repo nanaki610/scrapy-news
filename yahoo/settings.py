@@ -68,6 +68,7 @@ SPIDER_MIDDLEWARES = {
 ITEM_PIPELINES = {
    'yahoo.pipelines.CsvPipeline': 400,
    'yahoo.pipelines.SQLAlchemyPipeline': 500,
+#    'yahoo.pipelines.SQLitePipeline': 600, #SQLAlchemyPipelineを使用するためコメントアウト
 }
 
 # Enable and configure the AutoThrottle extension (disabled by default)
