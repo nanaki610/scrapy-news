@@ -105,6 +105,21 @@ class YahooDownloaderMiddleware:
         spider.logger.info('Spider opened: %s' % spider.name)
 
 class SlackNotificationMiddleware:
+    """
+    スクレイピング中に発生したエラーをSlackに通知するミドルウェア。
+
+    このミドルウェアは、スクレイピングプロセス中に発生したエラーを捕捉し、
+    設定されたSlackチャンネルにエラー情報を送信します。エラー情報には、
+    エラーの内容、現在のリトライ回数、設定された最大リトライ回数、
+    およびエラーが発生したURLが含まれます。
+
+    Attributes:
+        crawler (Crawler): ScrapyのCrawlerインスタンス。シグナルの接続に使用されます。
+
+    Methods:
+        from_crawler(cls, crawler): クラスメソッド。Crawlerインスタンスを受け取り、インスタンスを初期化してシグナルを接続します。
+        spider_error(self, failure, response, spider): エラーが発生した際に呼び出されるメソッド。エラー情報をSlackに通知します。
+    """
     @classmethod
     def from_crawler(cls, crawler):
         s = cls()

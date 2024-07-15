@@ -115,8 +115,8 @@ def setup_logger(logger_name='python', log_file='execute.log', level='INFO'):
     logger.setLevel(log_levels[level])
     
     if not logger.hasHandlers(): # ハンドラが未設定の場合のみ設定
-        # handler = logging.FileHandler(filename=log_file, encoding='utf-8')
-        handler = logging.handlers.RotatingFileHandler(filename=log_file, maxBytes=100000, backupCount=5, encoding='utf-8')
+        handler = logging.FileHandler(filename=log_file, encoding='utf-8')
+        # handler = logging.handlers.RotatingFileHandler(filename=log_file, maxBytes=100000, backupCount=5, encoding='utf-8')
         formatter = logging.Formatter('%(asctime)s - %(filename)s - %(name)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
         logger.addHandler(handler)

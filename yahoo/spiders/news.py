@@ -156,6 +156,7 @@ class NewsSpider(scrapy.Spider):
         
         # ページ内にLINK_TO_ARTICLE_SELECTORが存在するか確認
         if not response.css(LINK_TO_ARTICLE_SELECTOR):
+            #存在しない場合は既に記事の詳細ページを開いているので、そのまま記事を取得
             article = response.css(HEADLINE_CONTENT_SELECTOR).get()
             # ItemLoaderを使ってデータを格納
             loader = ItemLoader(item=YahooItem(), response=response)
@@ -168,7 +169,6 @@ class NewsSpider(scrapy.Spider):
             self.pass_count += 1 # 取得記事数をカウント
             
         else: # リンクがある場合はリンクをクリックして記事の内容を取得
-            
             url = response.css(LINK_TO_ARTICLE_SELECTOR).attrib['href']
             yield scrapy.Request(
                 url,
@@ -241,15 +241,16 @@ class NewsSpider(scrapy.Spider):
             screenshot = await page.screenshot(path=f"SS/error{self.page_number}-{self.article_number}.png", full_page=True)
             await page.close()  # 失敗したページを閉じる
 
-        # エラーメッセージをログに記録
-        logger.error(f"Request failed: {failure.request.url}, Reason: {failure.value}")
-        
         # リトライ回数を取得
         retry_times = self.settings.get('RETRY_TIMES', 0)
         retry_count = failure.request.meta.get('retry_times', 0)
         
+        # エラーメッセージをログに記録
+        logger.error(f"Request failed: {failure.request.url}, Reason: {failure.value}")
+        
         if retry_times == retry_count:
             post_slack(f"Yahoo Newsのスクレイピングに失敗した記事があります: {failure.request.url}")
+            logger.info(f"Yahoo Newsのスクレイピングに失敗した記事があります: {failure.request.url}")
             self.error_count += 1
             # ItemLoaderを使ってデータを格納。エラーが発生した場合はURL以外'Error'を格納。
             loader = ItemLoader(item=YahooItem(), response=failure.request)
@@ -261,6 +262,7 @@ class NewsSpider(scrapy.Spider):
             yield loader.load_item()
         else:
             logger.info(f"エラー発生のためリトライします。URL: {failure.request.url}\nリトライ回数: {retry_count}/{retry_times}")
+            post_slack(f"エラー発生のためリトライします。URL: {failure.request.url}\nリトライ回数: {retry_count}/{retry_times}")
         
         # post_slack(f"Yahoo Newsのスクレイピングに失敗した記事があります: {failure.request.url}")
         # self.error_count += 1 # エラー記事数をカウント

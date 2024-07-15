@@ -44,7 +44,7 @@ jobs: # ワークフローで実行されるジョブを定義します。
       - name: Run scrapy # ステップの名前を設定します。
         # メモリ不足エラーを回避するために、NODE_OPTIONS環境変数を設定した後にScrapyスクリプトを実行します。
         run: |
-         export NODE_OPTIONS=--max_old_space_size=4096
+         export NODE_OPTIONS=--max_old_space_size=8192
          poetry run python yahoo/run_scrapy.py
 
       - name: Upload artifacts # ステップの名前を設定します。

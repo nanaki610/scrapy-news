@@ -27,10 +27,26 @@ logger = setup_logger('news', LOG_FILE, LOG_LEVEL)
 tokyo_timezone = pytz.timezone('Asia/Tokyo')
 
 def spider_opened(spider): #スパイダーが開始したときに実行する関数
+  """
+  スパイダーが開始する際に実行される関数。
+  スパイダーの開始時刻をログに記録します。
+
+  Args:
+    spider (Spider): 開始されたScrapyスパイダーのインスタンス。
+  """
   start_time = datetime.now(tokyo_timezone).strftime('%Y/%m/%d %H:%M') #現在時刻(JST)をYYYYMMDDhhmm形式で取得
   logger.info(f"スクレイピング開始時刻: {start_time}")
   
 def spider_closed(spider, reason): #スパイダーが終了したときに実行する関数
+  """
+  スパイダーが終了する際に実行される関数。
+  スパイダーの終了時刻と終了理由をログに記録し、
+  スクレイピングの結果をSlackに通知します。
+
+  Args:
+    spider (Spider): 終了したScrapyスパイダーのインスタンス。
+    reason (str): スパイダーが終了した内容。
+  """
   end_time = datetime.now(tokyo_timezone).strftime('%Y/%m/%d %H:%M')
   logger.info(f"[{reason}]スクレイピング終了時刻: {end_time}")
   if spider.flag_use_csv and spider.flag_use_DB:
