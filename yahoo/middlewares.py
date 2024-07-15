@@ -8,6 +8,8 @@ from scrapy import signals
 # useful for handling different item types with a single interface
 from itemadapter import is_item, ItemAdapter
 
+from common_func import post_slack
+
 
 class YahooSpiderMiddleware:
     # Not all methods need to be defined. If a method is not defined,
@@ -101,3 +103,31 @@ class YahooDownloaderMiddleware:
 
     def spider_opened(self, spider):
         spider.logger.info('Spider opened: %s' % spider.name)
+
+class SlackNotificationMiddleware:
+    """
+    スクレイピング中に発生したエラーをSlackに通知するミドルウェア。
+
+    このミドルウェアは、スクレイピングプロセス中に発生したエラーを捕捉し、
+    設定されたSlackチャンネルにエラー情報を送信します。エラー情報には、
+    エラーの内容、現在のリトライ回数、設定された最大リトライ回数、
+    およびエラーが発生したURLが含まれます。
+
+    Attributes:
+        crawler (Crawler): ScrapyのCrawlerインスタンス。シグナルの接続に使用されます。
+
+    Methods:
+        from_crawler(cls, crawler): クラスメソッド。Crawlerインスタンスを受け取り、インスタンスを初期化してシグナルを接続します。
+        spider_error(self, failure, response, spider): エラーが発生した際に呼び出されるメソッド。エラー情報をSlackに通知します。
+    """
+    @classmethod
+    def from_crawler(cls, crawler):
+        s = cls()
+        crawler.signals.connect(s.spider_error, signal=signals.spider_error)
+        return s
+
+    def spider_error(self, failure, response, spider):
+        retry_times = spider.settings.get('RETRY_TIMES', 0)
+        #現在のリトライ回数を取得
+        retry_count = response.meta.get('retry_times', 0)
+        post_slack(f"スクレイピング中にエラーが発生しました。エラー内容: {failure.getErrorMessage()}\nリトライ回数: {retry_count}/{retry_times}\nURL: {response.url}")

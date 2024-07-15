@@ -5,7 +5,7 @@ import scrapy
 from scrapy_playwright.page import PageMethod
 from scrapy.selector import Selector
 from scrapy.loader import ItemLoader
-from common_func import setup_logger
+from common_func import get_this_year, setup_logger
 
 # 現在のファイルのディレクトリパスを取得
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -33,6 +33,12 @@ class NewsSpider(scrapy.Spider):
     article_number = 1
     flag_today_article = True
     fetch_count = 0
+    
+    #pipelineクラスで使用
+    flag_use_csv = False
+    flag_use_DB = False
+    skip_csv_count = 0
+    skip_DB_count = 0
 
     def start_requests(self):
         """
@@ -67,7 +73,7 @@ class NewsSpider(scrapy.Spider):
         page = response.meta.get('playwright_page')
         if page:
             screenshot = await page.screenshot(path=f"SS/page{self.page_number}.png", full_page=True)
-        await page.close() # Playwrightのページを閉じる
+            await page.close() # Playwrightのページを閉じる
         
         today = get_today() # 今日の日付を取得
         
@@ -80,13 +86,19 @@ class NewsSpider(scrapy.Spider):
             post_date = convert_date(article.css(POST_DATE).get()) # 投稿日を取得
             url = article.css(ARTICLE_LINK).get() # URLを取得
             # 取得した投稿日が今日ではない場合は処理を終了
-            # if post_date['date'] != today:
-            #     self.flag_today_article = False
-            #     logger.info("前日の記事を取得したため終了します")
-            #     break
+            if post_date['date'] != today:
+                self.flag_today_article = False
+                logger.info("前日の記事を取得したため終了します")
+                break
             
+            #年跨ぎを考慮
+            if int(post_date['date']) <= int(today): #年跨ぎしていない場合
+                post_date = f"{get_this_year()}{post_date['date']}{post_date['time']}"
+            else: #年跨ぎの場合
+                post_date = f"{int(get_this_year())-1}{post_date['date']}{post_date['time']}"
+                
             self.fetch_count += 1
-            logger.info(f"[start_parse]記事取得: {self.fetch_count}回目 記事番号: {article_number} タイトル: {title} 投稿日: {post_date['date']} {post_date['time']} URL: {url}")
+            logger.info(f"[start_parse]記事取得: {self.fetch_count}回目 記事番号: {article_number} タイトル: {title} 投稿日: {post_date} URL: {url}")
             
             # 記事のリンクに移動
             yield scrapy.Request(
@@ -101,7 +113,7 @@ class NewsSpider(scrapy.Spider):
                     ],
                     'title': title,
                     'article_number': article_number,
-                    'post_date': f"{post_date['date']}{post_date['time']}",
+                    'post_date': post_date,
                     'url': url,
                 },
                 # callback=self.parse_article,
@@ -140,10 +152,12 @@ class NewsSpider(scrapy.Spider):
         logger.info("parse_headline")
         logger.info(f"[parse_headline]記事取得: {self.fetch_count}回目 記事番号: {response.meta['article_number']} タイトル: {response.meta['title']} 投稿日: {response.meta['post_date']} URL: {response.meta['url']}")
         page = response.meta.get('playwright_page')
-        await page.close() # Playwrightのページを閉じる
+        if page:
+            await page.close() # Playwrightのページを閉じる
         
         # ページ内にLINK_TO_ARTICLE_SELECTORが存在するか確認
         if not response.css(LINK_TO_ARTICLE_SELECTOR):
+            #存在しない場合は既に記事の詳細ページを開いているので、そのまま記事を取得
             article = response.css(HEADLINE_CONTENT_SELECTOR).get()
             # ItemLoaderを使ってデータを格納
             loader = ItemLoader(item=YahooItem(), response=response)
@@ -156,7 +170,6 @@ class NewsSpider(scrapy.Spider):
             self.pass_count += 1 # 取得記事数をカウント
             
         else: # リンクがある場合はリンクをクリックして記事の内容を取得
-            
             url = response.css(LINK_TO_ARTICLE_SELECTOR).attrib['href']
             yield scrapy.Request(
                 url,
@@ -227,19 +240,27 @@ class NewsSpider(scrapy.Spider):
         page = failure.request.meta.get("playwright_page")
         if page:
             screenshot = await page.screenshot(path=f"SS/error{self.page_number}-{self.article_number}.png", full_page=True)
-        await page.close()  # 失敗したページを閉じる
+            await page.close()  # 失敗したページを閉じる
 
+        # リトライ回数を取得
+        retry_times = self.settings.get('RETRY_TIMES', 0)
+        retry_count = failure.request.meta.get('retry_times', 0)
+        
         # エラーメッセージをログに記録
         logger.error(f"Request failed: {failure.request.url}, Reason: {failure.value}")
         
-        # ItemLoaderを使ってデータを格納。エラーが発生した場合はURL以外'Error'を格納。
-        loader = ItemLoader(item=YahooItem(), response=failure.request)
-        loader.add_value('title', 'Error')
-        loader.add_value('article_number', 'Error')
-        loader.add_value('post_date', 'Error')
-        loader.add_value('url', failure.request.url)
-        loader.add_value('article', 'Error')
-        yield loader.load_item()
-        
-        post_slack(f"Yahoo Newsのスクレイピングに失敗した記事があります: {failure.request.url}")
-        self.error_count += 1 # エラー記事数をカウント
+        if retry_times == retry_count:
+            post_slack(f"Yahoo Newsのスクレイピングに失敗した記事があります: {failure.request.url}")
+            logger.info(f"Yahoo Newsのスクレイピングに失敗した記事があります: {failure.request.url}")
+            self.error_count += 1
+            # ItemLoaderを使ってデータを格納。エラーが発生した場合はURL以外'Error'を格納。
+            loader = ItemLoader(item=YahooItem(), response=failure.request)
+            loader.add_value('title', 'Error')
+            loader.add_value('article_number', 'Error')
+            loader.add_value('post_date', 'Error')
+            loader.add_value('url', failure.request.url)
+            loader.add_value('article', 'Error')
+            yield loader.load_item()
+        else:
+            logger.info(f"エラー発生のためリトライします。URL: {failure.request.url}\nリトライ回数: {retry_count}/{retry_times}")
+            post_slack(f"エラー発生のためリトライします。URL: {failure.request.url}\nリトライ回数: {retry_count}/{retry_times}")

@@ -7,6 +7,7 @@ common_func.py
 - search_word(text, word): 文字列から指定した単語があればtrueを返します。
 - convert_date(refDate): 指定された日時文字列をMMDDhhmm形式に変換します。
 - get_today(): 現在の日付をMMDD形式で取得します。
+- get_this_year(): 現在の年を4桁で取得します。
 - post_slack(text): Slackにメッセージを投稿します。
 - setup_logger(logger_name='python', log_file='execute.log', level=logging.INFO): ロガーを設定し、ログファイルを準備します。
 """
@@ -72,7 +73,16 @@ def get_today():
     """
     today = datetime.now(pytz.timezone('Asia/Tokyo'))
     return today.strftime('%m%d')
-  
+
+def get_this_year():
+    """
+    現在の年を取得する関数
+
+    :return str: 現在の年4桁
+    """
+    today = datetime.now(pytz.timezone('Asia/Tokyo'))
+    return today.strftime('%Y')
+
 def post_slack(text="test投稿"):
     """
     SLACK_WEBHOOK_URLに指定されたURLにPOSTリクエストを送信し、メッセージを投稿する関数
@@ -89,8 +99,11 @@ def post_slack(text="test投稿"):
     }
 
     # SlackにPOSTリクエストを送信
-    requests.post(web_hook_url, data=json.dumps(message))
-    
+    try:
+        requests.post(web_hook_url, data=json.dumps(message))
+    except requests.exceptions.RequestException as e:
+        print(f"Slackへの投稿に失敗しました: {e}")
+        
 def setup_logger(logger_name='python', log_file='execute.log', level='INFO'):
     """
     特定のロガーのログレベルを設定し、ログファイルを準備する関数。
@@ -112,8 +125,8 @@ def setup_logger(logger_name='python', log_file='execute.log', level='INFO'):
     logger.setLevel(log_levels[level])
     
     if not logger.hasHandlers(): # ハンドラが未設定の場合のみ設定
-        # handler = logging.FileHandler(filename=log_file, encoding='utf-8')
-        handler = logging.handlers.RotatingFileHandler(filename=log_file, maxBytes=100000, backupCount=5, encoding='utf-8')
+        handler = logging.FileHandler(filename=log_file, encoding='utf-8')
+        # handler = logging.handlers.RotatingFileHandler(filename=log_file, maxBytes=100000, backupCount=5, encoding='utf-8')
         formatter = logging.Formatter('%(asctime)s - %(filename)s - %(name)s - %(levelname)s - %(message)s')
         handler.setFormatter(formatter)
         logger.addHandler(handler)
