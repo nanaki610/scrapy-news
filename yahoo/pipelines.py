@@ -1,3 +1,10 @@
+"""
+Yahooニュースのスクレイピング結果を保存するためのパイプラインクラスを定義します。
+CsvPipeline: CSVファイルに結果を保存するパイプラインクラス
+SQLitePipeline: SQLiteデータベースに結果を保存するパイプラインクラス
+SQLAlchemyPipeline: SQLAlchemyを使用してデータベースに結果を保存するパイプラインクラス
+"""
+
 # Define your item pipelines here
 #
 # Don't forget to add your pipeline to the ITEM_PIPELINES setting
@@ -10,7 +17,7 @@ import sqlite3
 from sqlalchemy.exc import SQLAlchemyError
 from models import Base, Article, Session
 from common_func import setup_logger
-from const import LOG_LEVEL, LOG_FILE
+from const import CSV_FILE, LOG_LEVEL, LOG_FILE
 
 # ロガーの設定
 logger = setup_logger('news', LOG_FILE, LOG_LEVEL)
@@ -30,7 +37,7 @@ class CsvPipeline:
         """
         spider.flag_use_csv = True
         
-        self.file = open("yahoo_news.csv", "a+", newline='', encoding='utf-8')
+        self.file = open(CSV_FILE, "a+", newline='', encoding='utf-8')
         self.file.seek(0)
         self.existing_urls = set(line.split(',')[3].strip() for line in self.file.readlines())
         
