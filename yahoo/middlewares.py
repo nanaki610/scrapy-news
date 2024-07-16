@@ -7,9 +7,12 @@ from scrapy import signals
 
 # useful for handling different item types with a single interface
 from itemadapter import is_item, ItemAdapter
+import scrapy
+from scrapy_playwright.page import PageMethod
 
 from common_func import post_slack
-
+from yahoo.const import ARTICLE_SELECTOR, TIMEOUT, TOP_PICS_SELECTOR, TOP_PICS_URL
+from spiders.news import NewsSpider
 
 class YahooSpiderMiddleware:
     # Not all methods need to be defined. If a method is not defined,
@@ -104,7 +107,7 @@ class YahooDownloaderMiddleware:
     def spider_opened(self, spider):
         spider.logger.info('Spider opened: %s' % spider.name)
 
-class SlackNotificationMiddleware:
+class ScrapyRetryMiddleware:
     """
     スクレイピング中に発生したエラーをSlackに通知するミドルウェア。
 
@@ -120,6 +123,7 @@ class SlackNotificationMiddleware:
         from_crawler(cls, crawler): クラスメソッド。Crawlerインスタンスを受け取り、インスタンスを初期化してシグナルを接続します。
         spider_error(self, failure, response, spider): エラーが発生した際に呼び出されるメソッド。エラー情報をSlackに通知します。
     """
+    retry_times = 0
     @classmethod
     def from_crawler(cls, crawler):
         s = cls()
@@ -128,26 +132,53 @@ class SlackNotificationMiddleware:
 
     def spider_error(self, failure, response, spider):
         print("spider_error")
-        retry_times = spider.settings.get('RETRY_TIMES', 0)
+        max_retry_times = spider.settings.get('RETRY_TIMES')
         #現在のリトライ回数を取得
-        retry_count = response.meta.get('retry_times', 0)
-        post_slack(f"スクレイピング中にエラーが発生しました。エラー内容: {failure.getErrorMessage()}\nリトライ回数: {retry_count}/{retry_times}\nURL: {response.url}")
-
-# リトライはerrbackメソッドで定義したので下記は使わない(コメントアウト)
-# class PlaywrightRetryMiddleware:
-    
-#     def process_exception(self, request, exception, spider):
-#         if 'playwright' in request.meta:
-#             spider.logger.error(f'Playwright timeout exception: {exception}')
-#             retry_times = request.meta.get('retry_times', 0)
-#             max_retry_times = spider.crawler.settings.getint('RETRY_TIMES', 3)
+        # retry_times = response.meta.get('retry_times')
+        
+        if self.retry_times < max_retry_times:
+            self.retry_times += 1
+            post_slack(f"スクレイピング中にエラーが発生し為リトライします。エラー内容: {failure.getErrorMessage()}\nリトライ回数: {self.retry_times}/{max_retry_times}\nURL: {response.url}")
+            spider.logger.info(f"Retrying ({self.retry_times}/{max_retry_times}) for {response.url}")
             
-#             if retry_times < max_retry_times:
-#                 retry_times += 1
-#                 spider.logger.info(f'Retrying ({retry_times}/{max_retry_times}) for {request.url}')
-#                 retry_request = request.copy()
-#                 retry_request.meta['retry_times'] = retry_times
-#                 return retry_request
-#             else:
-#                 spider.logger.error(f'Giving up on {request.url} after {retry_times} retries')
-#         return None
+            #statusによってscrapy.Requestのselectorとcallbackメソッドを変更
+            if spider.status == "start_requests":
+                selector = TOP_PICS_SELECTOR
+                callback = spider.start_parse
+            elif spider.status == "start_parse":
+                selector = ARTICLE_SELECTOR
+                callback = spider.parse_headline
+            elif spider.status == "start_parse_next_page":
+                selector = TOP_PICS_SELECTOR
+                callback = spider.start_parse
+            elif spider.status == "parse_headline":
+                selector = ARTICLE_SELECTOR
+                callback = spider.parse_article
+            elif spider.status == "parse_article":
+                selector = ARTICLE_SELECTOR
+                callback = spider.parse_article
+            
+            #リトライするためのリクエストを作成
+            return scrapy.Request(
+                TOP_PICS_URL,
+                meta={
+                    'playwright': True,
+                    'playwright_include_page': True,
+                    'playwright_page_methods': [
+                        PageMethod('wait_for_selector', selector, timeout=TIMEOUT),
+                    ],
+                    # 'title': response.meta['title'],
+                    # 'article_number': response.meta['article_number'],
+                    # 'post_date': response.meta['post_date'],
+                    # 'url': response.url,
+                    'retry_times': self.retry_times,
+                },
+                callback=NewsSpider.start_parse,
+                errback=NewsSpider.errback,
+                dont_filter=True,
+            )
+
+        else:
+            post_slack(f"スクレイピング中にエラーが発生したため終了します。エラー内容: {failure.getErrorMessage()}\nリトライ回数: {self.retry_times}/{max_retry_times}\nURL: {response.url}")
+            spider.logger.error(f"Giving up on {response.url} after {self.retry_times} retries")
+            
