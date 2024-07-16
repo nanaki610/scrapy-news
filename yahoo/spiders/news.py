@@ -251,7 +251,7 @@ class NewsSpider(scrapy.Spider):
             # 記事の内容を取得。'article#uamods'は記事のHTML要素を指定するセレクタ
             try:
                 article = selector.css(ARTICLE_CONTENT_SELECTOR).getall()
-                article = list2str(article)
+                article = list2str(article) # 記事の内容を文字列に変換
             except Exception as e:
                 logger.warning("この記事のセレクターは特殊のため本文取得をスキップします",e)
                 article = "-"
