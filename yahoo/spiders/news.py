@@ -70,7 +70,7 @@ class NewsSpider(scrapy.Spider):
     article_number = 1
     flag_today_article = True
     fetch_count = 0
-    error_article_info = None
+    error_article_info = ""
     
     #pipelineクラスで使用
     flag_use_csv = False
@@ -253,12 +253,16 @@ class NewsSpider(scrapy.Spider):
                 article = selector.css(ARTICLE_CONTENT_SELECTOR).getall()
                 article = list2str(article) # 記事の内容を文字列に変換
             except Exception as e:
+                self.error_count += 1
                 logger.warning("この記事のセレクターは特殊のため本文取得をスキップします",e)
+                post_slack(f"この記事のセレクターは特殊のため本文取得をスキップします\n{response.meta['url']}")
                 article = "-"
                 pass
         else:
+            self.error_count += 1
             logger.warning("特殊な記事ページの為、本文取得をスキップします")
-            article = "特殊な記事ページの為、本文取得をスキップします"
+            post_slack(f"特殊な記事ページの為、本文取得をスキップします\n{response.meta['url']}")
+            article = "-"
         await page.close()  # コンテンツ取得後にページを閉じる
         
         #記事の内容以外の情報をItemLoaderに格納
