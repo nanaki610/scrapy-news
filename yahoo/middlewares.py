@@ -138,7 +138,7 @@ class ScrapyRetryMiddleware:
         
         if self.retry_times < max_retry_times:
             self.retry_times += 1
-            post_slack(f"スクレイピング中にエラーが発生し為リトライします。エラー内容: {failure.getErrorMessage()}\nリトライ回数: {self.retry_times}/{max_retry_times}\nURL: {response.url}")
+            post_slack(f"スクレイピング中にエラーが発生した為リトライします。エラー内容: {failure.getErrorMessage()}\nリトライ回数: {self.retry_times}/{max_retry_times}\nURL: {response.url}")
             spider.logger.info(f"Retrying ({self.retry_times}/{max_retry_times}) for {response.url}")
             
             #statusによってscrapy.Requestのselectorとcallbackメソッドを変更
@@ -165,7 +165,7 @@ class ScrapyRetryMiddleware:
                     'playwright': True,
                     'playwright_include_page': True,
                     'playwright_page_methods': [
-                        PageMethod('wait_for_selector', selector, timeout=TIMEOUT),
+                        PageMethod('wait_for_selector', TOP_PICS_SELECTOR, timeout=TIMEOUT),
                     ],
                     # 'title': response.meta['title'],
                     # 'article_number': response.meta['article_number'],
