@@ -255,13 +255,13 @@ class NewsSpider(scrapy.Spider):
             except Exception as e:
                 self.error_count += 1
                 logger.warning("この記事のセレクターは特殊のため本文取得をスキップします",e)
-                post_slack(f"この記事のセレクターは特殊のため本文取得をスキップします\n{response.meta['url']}")
+                self.error_article_info += f"特殊な記事ページの為、本文取得をスキップしました\n{response.meta['url']}"
                 article = "-"
                 pass
         else:
             self.error_count += 1
             logger.warning("特殊な記事ページの為、本文取得をスキップします")
-            post_slack(f"特殊な記事ページの為、本文取得をスキップします\n{response.meta['url']}")
+            self.error_article_info += f"特殊な記事ページの為、本文取得をスキップしました\n{response.meta['url']}"
             article = "-"
         await page.close()  # コンテンツ取得後にページを閉じる
         
