@@ -31,7 +31,8 @@ TOP_PICS_URL = 'https://news.yahoo.co.jp/topics/top-picks'
 ##selector
 #item selector
 TITLE = 'div.newsFeed_item_title::text'
-POST_DATE = 'time.newsFeed_item_date::text'
+# POST_DATE = 'time.newsFeed_item_date::text'
+POST_DATE = 'time[class*=faCsgc]::text' # 20240717現在のセレクター
 ARTICLE_LINK = 'a.newsFeed_item_link::attr(href)'
 
 #other selector
