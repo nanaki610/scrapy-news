@@ -66,6 +66,7 @@ class NewsSpider(scrapy.Spider):
     status = ""
     pass_count = 0 # 取得記事数
     error_count = 0 # エラー記事数
+    skip_count = 0 # 本文取得をスキップした記事数
     page_number = 1
     article_number = 1
     flag_today_article = True
@@ -253,15 +254,15 @@ class NewsSpider(scrapy.Spider):
                 article = selector.css(ARTICLE_CONTENT_SELECTOR).getall()
                 article = list2str(article) # 記事の内容を文字列に変換
             except Exception as e:
-                self.error_count += 1
+                self.skip_count += 1
                 logger.warning("この記事のセレクターは特殊のため本文取得をスキップします",e)
-                self.error_article_info += f"特殊な記事ページの為、本文取得をスキップしました\n{response.meta['url']}"
+                self.error_article_info += f"特殊な記事ページの為、本文取得をスキップしました\n{response.meta['url']} \n"
                 article = "-"
                 pass
         else:
-            self.error_count += 1
+            self.skip_count += 1
             logger.warning("特殊な記事ページの為、本文取得をスキップします")
-            self.error_article_info += f"特殊な記事ページの為、本文取得をスキップしました\n{response.meta['url']}"
+            self.error_article_info += f"特殊な記事ページの為、本文取得をスキップしました\n{response.meta['url']} \n"
             article = "-"
         await page.close()  # コンテンツ取得後にページを閉じる
         
